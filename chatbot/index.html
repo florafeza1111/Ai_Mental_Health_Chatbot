@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>AIMHSA Chat</title>
+	<link rel="stylesheet" href="style.css?13263" />
+</head>
+<body>
+	<div class="app">
+		<aside class="sidebar">
+			<div class="sidebar-header">
+				<div class="brand">AIMHSA</div>
+				<button id="newChatBtn" class="start-over">New Chat</button>
+			</div>
+			<div class="history-list" id="historyList">
+				<!-- Chat history items will be dynamically added here -->
+			</div>
+		</aside>
+
+		<div class="main-content">
+			<header class="app-header">
+				<div class="controls">
+					<input id="usernameInput" placeholder="Username" />
+					<input id="passwordInput" type="password" placeholder="Password" />
+					<button id="signInBtn">Sign In</button>
+					<button id="registerBtn">Register</button>
+					<button id="anonBtn">Use Anonymous (IP)</button>
+				</div>
+			</header>
+
+			<main class="chat">
+				<div id="messages" class="messages"></div>
+				<form id="form" class="composer">
+					<input id="query" autocomplete="off" placeholder="Ask AIMHSA..." />
+					<label class="file-btn">
+						<input id="file" type="file" accept="application/pdf" />
+						📎
+					</label>
+					<button id="send">Send</button>
+				</form>
+			</main>
+		</div>
+	</div>
+
+	<script src="app.js?12536"></script>
+</body>
+</html>

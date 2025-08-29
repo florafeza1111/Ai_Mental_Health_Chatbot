@@ -1,0 +1,57 @@
+{
+  "register": {
+    "url": "http://localhost:5057/register",
+    "method": "POST",
+    "body_json": {
+      "username": "alice",
+      "password": "Secret123!"
+    },
+    "notes": "POST JSON in Body -> raw -> application/json"
+  },
+  "login": {
+    "url": "http://localhost:5057/login",
+    "method": "POST",
+    "body_json": {
+      "username": "alice",
+      "password": "Secret123!"
+    },
+    "notes": "On success server returns { ok: true, account: \"alice\" }"
+  },
+  "create_conversation": {
+    "url": "http://localhost:5057/conversations",
+    "method": "POST",
+    "body_json": {
+      "account": "alice"
+    },
+    "notes": "Requires authenticated account; server returns { id: \"<conv_id>\", new: true }"
+  },
+  "list_conversations": {
+    "url": "http://localhost:5057/conversations?account=alice",
+    "method": "GET",
+    "body_json": null,
+    "notes": "GET — returns { conversations: [ { id, preview, timestamp }, ... ] }"
+  },
+  "session": {
+    "url": "http://localhost:5057/session",
+    "method": "POST",
+    "body_json": {
+      "account": "alice"
+    },
+    "notes": "Use account for account-bound session, or omit account for IP-bound session"
+  },
+  "ask": {
+    "url": "http://localhost:5057/ask",
+    "method": "POST",
+    "body_json": {
+      "id": "<conv_id_or_omit_to_create>",
+      "query": "Hello, how can you help me today?",
+      "history": [],
+      "account": "alice"
+    },
+    "notes": "If id omitted server creates a new conversation. Include account when signed-in."
+  },
+  "upload_pdf_curl_example": {
+    "notes": "Use multipart/form-data; in Postman choose 'form-data' with key 'file' (type: file), optional 'id' and 'question'",
+    "curl": "curl -X POST \"http://localhost:5057/upload_pdf\" -F \"file=@/path/to/doc.pdf\" -F \"account=alice\" -F \"question=Summarize this PDF\""
+  }
+}

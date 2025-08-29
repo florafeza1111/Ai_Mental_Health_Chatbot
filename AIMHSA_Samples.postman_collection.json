@@ -1,0 +1,104 @@
+{
+  "info": {
+    "name": "AIMHSA RAG Chatbot - Sample Queries",
+    "_postman_id": "feza-aimhsa-rag-002",
+    "description": "Postman collection to test AIMHSA RAG chatbot with sample queries for Rwanda mental health.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:5057/healthz",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "5057",
+          "path": ["healthz"]
+        }
+      }
+    },
+    {
+      "name": "Ask: PTSD Symptoms",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"What are the common symptoms of PTSD in Rwanda?\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:5057/ask",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "5057",
+          "path": ["ask"]
+        }
+      }
+    },
+    {
+      "name": "Ask: Coping with Anxiety",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"How can someone in Rwanda cope with anxiety?\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:5057/ask",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "5057",
+          "path": ["ask"]
+        }
+      }
+    },
+    {
+      "name": "Ask: Depression Support",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"What support services exist for depression in Rwanda?\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:5057/ask",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "5057",
+          "path": ["ask"]
+        }
+      }
+    },
+    {
+      "name": "Ask: Mental Health Policy",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"Summarize Rwanda's National Mental Health Policy.\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:5057/ask",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "5057",
+          "path": ["ask"]
+        }
+      }
+    }
+  ]
+}
