@@ -1,5 +1,5 @@
 import os, json, numpy as np
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import ollama
 from dotenv import load_dotenv
@@ -13,18 +13,9 @@ from werkzeug.utils import secure_filename
 
 load_dotenv()
 
-# --- Constants ---
-DATA_DIR = "data"  # knowledgebase directory containing source files
-STORAGE_DIR = "storage"
-EMBED_FILE = os.path.join(STORAGE_DIR, "embeddings.json")
+EMBED_FILE = "storage/embeddings.json"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
-# sentence-level embedder used for query / semantic search (can be same as EMBED_MODEL or a dedicated sentence model)
-SENT_EMBED_MODEL = os.getenv("SENT_EMBED_MODEL", EMBED_MODEL)
-
-# lazy-loaded SentenceTransformer instance (only used when SENT_EMBED_MODEL points to a sentence-transformers model)
-SENT_MODEL = None
-USE_SENT_TRANSFORMERS = SENT_EMBED_MODEL.startswith("sentence-transformers/")
 
 # --- new DB config ---
 DB_FILE = "storage/conversations.db"
@@ -195,102 +186,10 @@ SYSTEM_PROMPT = """You are AIMHSA, a supportive mental-health companion for Rwan
 also keep it brief except when details are required.
 """
 
-def rebuild_vector_store():
-    """
-    Rebuild vector store from documents in /data directory.
-    - Process all .txt files in /data
-    - Split into chunks with overlap
-    - Embed chunks using EMBED_MODEL
-    - Save to storage/embeddings.json
-    """
-    app.logger.info("Rebuilding vector store from /data...")
-    
-    # ensure storage dir exists
-    os.makedirs(STORAGE_DIR, exist_ok=True)
-    
-    chunks = []
-    chunk_id = 0
-    
-    # process all .txt files in data directory
-    for root, _, files in os.walk(DATA_DIR):
-        for fname in files:
-            if not fname.endswith('.txt'):
-                continue
-            
-            fpath = os.path.join(root, fname)
-            rel_path = os.path.relpath(fpath, DATA_DIR)
-            
-            with open(fpath, 'r', encoding='utf-8') as f:
-                text = f.read()
-            
-            # split into chunks (~500 chars with 100 char overlap)
-            words = text.split()
-            chunk_words = []
-            chunk_size = 500
-            overlap = 100
-            
-            for i in range(0, len(words), chunk_size - overlap):
-                chunk = ' '.join(words[i:i + chunk_size])
-                if not chunk.strip():
-                    continue
-                    
-                chunks.append({
-                    "text": chunk,
-                    "source": rel_path,
-                    "chunk": chunk_id
-                })
-                chunk_id += 1
-    
-    if not chunks:
-        app.logger.warning("No chunks found in /data directory")
-        return
-    
-    # embed chunks using EMBED_MODEL
-    try:
-        app.logger.info(f"Embedding {len(chunks)} chunks...")
-        texts = [c["text"] for c in chunks]
-        
-        # batch embed to avoid memory issues (32 chunks per batch)
-        batch_size = 32
-        all_embeddings = []
-        
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            resp = ollama.embed(model=EMBED_MODEL, input=batch)
-            all_embeddings.extend(resp["embeddings"])
-            
-        # add embeddings to chunks
-        for chunk, embedding in zip(chunks, all_embeddings):
-            chunk["embedding"] = embedding
-            
-        # save to storage/embeddings.json
-        with open(EMBED_FILE, 'w', encoding='utf-8') as f:
-            json.dump(chunks, f, ensure_ascii=False, indent=2)
-            
-        app.logger.info(f"Saved {len(chunks)} embedded chunks to {EMBED_FILE}")
-        return chunks
-            
-    except Exception as e:
-        app.logger.exception("Failed to embed chunks")
-        raise
-
 # --- Load embeddings into memory ---
-chunks_data = None
-if os.path.exists(EMBED_FILE):
-    try:
-        with open(EMBED_FILE, "r", encoding="utf-8") as f:
-            chunks_data = json.load(f)
-        app.logger.info(f"Loaded {len(chunks_data)} chunks from {EMBED_FILE}")
-    except Exception:
-        app.logger.exception(f"Failed to load {EMBED_FILE}")
+with open(EMBED_FILE, "r", encoding="utf-8") as f:
+    chunks_data = json.load(f)
 
-if not chunks_data:
-    # rebuild if no valid embeddings found
-    chunks_data = rebuild_vector_store()
-    if not chunks_data:
-        raise RuntimeError("Failed to initialize vector store")
-
-# prepare numpy arrays for retrieval
 chunk_texts = [c["text"] for c in chunks_data]
 chunk_sources = [{"source": c["source"], "chunk": c["chunk"]} for c in chunks_data]
 chunk_embeddings = np.array([c["embedding"] for c in chunks_data], dtype=np.float32)
@@ -301,95 +200,12 @@ def cosine_similarity(a, b):
     b_norm = b / np.linalg.norm(b, axis=1, keepdims=True)
     return np.dot(a_norm, b_norm.T)
 
-def _mmr_selection(doc_embs: np.ndarray, query_emb: np.ndarray, k: int = 4, lambda_param: float = 0.6):
-    """
-    Maximal Marginal Relevance selection for diversity+relevance.
-    doc_embs: (n_docs, dim)
-    query_emb: (1, dim) or (dim,)
-    returns: list of selected indices (len <= k)
-    """
-    if doc_embs.size == 0:
-        return []
-    # normalize
-    doc_norm = doc_embs / np.linalg.norm(doc_embs, axis=1, keepdims=True)
-    q = query_emb.reshape(-1)
-    q_norm = q / np.linalg.norm(q)
-
-    # relevance scores to query
-    sims_q = np.dot(doc_norm, q_norm)
-    selected = []
-    # pick highest relevance first
-    first = int(np.argmax(sims_q))
-    selected.append(first)
-    if k == 1:
-        return selected
-
-    candidates = set(range(doc_embs.shape[0])) - set(selected)
-    # precompute doc-doc similarities for speed
-    doc_doc_sims = np.dot(doc_norm, doc_norm.T)
-
-    while len(selected) < k and candidates:
-        best_score = None
-        best_idx = None
-        for cand in candidates:
-            # relevance
-            rel = sims_q[cand]
-            # redundancy = max similarity to already selected
-            red = max(doc_doc_sims[cand, s] for s in selected) if selected else 0.0
-            score = lambda_param * rel - (1.0 - lambda_param) * red
-            if best_score is None or score > best_score:
-                best_score = score
-                best_idx = cand
-        if best_idx is None:
-            break
-        selected.append(best_idx)
-        candidates.remove(best_idx)
-    return selected
-
-def retrieve(query: str, k: int = 4, lambda_param: float = 0.6):
-    """
-    Semantic retrieval: embed the query with a sentence embedding model and
-    select top-k chunks using MMR for a balance of relevance and diversity.
-
-    Supports two modes:
-      - If SENT_EMBED_MODEL is "sentence-transformers/<model-name>", uses the
-        local sentence-transformers library (SentenceTransformer).
-      - Otherwise falls back to ollama.embed with the configured model.
-    """
-    global SENT_MODEL
-
-    # compute query embedding
-    if USE_SENT_TRANSFORMERS:
-        # model name format: sentence-transformers/<model-id>
-        model_id = SENT_EMBED_MODEL.split("/", 1)[1]
-        try:
-            if SENT_MODEL is None:
-                from sentence_transformers import SentenceTransformer
-                SENT_MODEL = SentenceTransformer(model_id)
-            # encode returns (dim,) or (1,dim) depending on args; ensure numpy array (1,dim)
-            q_emb = SENT_MODEL.encode(query, convert_to_numpy=True)
-            if q_emb.ndim == 1:
-                q_emb = q_emb.reshape(1, -1)
-            q_emb = q_emb.astype(np.float32)
-        except Exception as e:
-            # fallback to ollama if local model not available
-            try:
-                q_emb_resp = ollama.embed(model=EMBED_MODEL, input=[query])
-                q_emb = np.array(q_emb_resp["embeddings"], dtype=np.float32)
-            except Exception:
-                raise
-    else:
-        # default: use ollama embed API
-        q_emb_resp = ollama.embed(model=SENT_EMBED_MODEL, input=[query])
-        q_emb = np.array(q_emb_resp["embeddings"], dtype=np.float32)
-
-    # ensure chunk_embeddings shape OK
-    if chunk_embeddings.size == 0:
-        return []
-
-    # select indices via MMR (works with doc embeddings and query embedding)
-    idxs = _mmr_selection(chunk_embeddings, q_emb, k=k, lambda_param=lambda_param)
-    return [(chunk_texts[i], chunk_sources[i]) for i in idxs]
+# --- Retrieve top-k relevant chunks ---
+def retrieve(query: str, k: int = 4):
+    q_emb = np.array(ollama.embed(model=EMBED_MODEL, input=[query])["embeddings"], dtype=np.float32)
+    sims = cosine_similarity(chunk_embeddings, q_emb)[:,0]
+    top_idx = sims.argsort()[-k:][::-1]
+    return [(chunk_texts[i], chunk_sources[i]) for i in top_idx]
 
 def build_context(snippets):
     lines = []
@@ -698,14 +514,12 @@ def history():
 @app.post("/upload_pdf")
 def upload_pdf():
     """
-    Initial upload:
     Accepts multipart/form-data:
       - file: PDF file (required, .pdf only)
       - id: optional conversation id (if omitted, a new id is created)
+      - question: optional text question; if provided the server will answer using ONLY the extracted PDF text as context
     Returns JSON:
-      { "id": "<conv_id>", "filename": "...", "new": true|false }
-
-    Question about uploaded PDF will be handled by /ask endpoint using the stored text
+      { "id": "<conv_id>", "filename": "...", "answer": "...", "new": true|false }
     """
     if "file" not in request.files:
         return jsonify({"error": "Missing 'file'"}), 400
@@ -729,13 +543,15 @@ def upload_pdf():
             owner = f"ip:{request.remote_addr or 'unknown'}"
         create_conversation(owner_key=owner, conv_id=conv_id, preview="New chat")
 
+    question = (request.form.get("question") or "").strip()
+
     # save uploaded PDF to a temp file
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = tmp.name
         f.save(tmp_path)
 
     extracted_text = ""
-    extraction_errors = []
+    extraction_errors = []  # collect errors from each attempt for debugging
 
     try:
         # Try to render PDF pages to images using pdf2image -> pytesseract
@@ -840,6 +656,28 @@ def upload_pdf():
     if new_conv:
         resp["new"] = True
 
+    # If a question was provided, answer it using ONLY the PDF text as context
+    if question:
+        # build messages that include system prompt and the single PDF context
+        SHORT = 40_000
+        att_text = extracted_text if len(extracted_text) <= SHORT else extracted_text[:SHORT] + "\n\n...[truncated]"
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": f"PDF CONTEXT ({filename}):\n{att_text}"},
+            {"role": "user", "content": f"Answer the user's question using ONLY the CONTEXT above.\n\nQUESTION:\n{question}"}
+        ]
+        try:
+            reply = ollama.chat(model=CHAT_MODEL, messages=messages)
+            answer = reply["message"]["content"]
+        except Exception as e:
+            app.logger.exception("ollama.chat failed for PDF-question")
+            return jsonify({"error": f"Unexpected error during chat: {str(e)}"}), 500
+
+        # persist raw question and assistant reply to conversation history
+        save_message(conv_id, "user", question)
+        save_message(conv_id, "assistant", answer)
+        resp["answer"] = answer
+
     return jsonify(resp)
 
 # new endpoints: create and list conversations
@@ -934,31 +772,5 @@ def login():
         conn.close()
     return jsonify({"ok": True, "account": username})
 
-@app.post("/clear_chat")
-def clear_chat():
-    """Clear messages and attachments for a conversation."""
-    data = request.get_json(force=True)
-    conv_id = data.get("id")
-    if not conv_id:
-        return jsonify({"error": "Missing conversation id"}), 400
-
-    conn = sqlite3.connect(DB_FILE)
-    try:
-        # Delete messages and attachments for this conversation
-        conn.execute("DELETE FROM messages WHERE conv_id = ?", (conv_id,))
-        conn.execute("DELETE FROM attachments WHERE conv_id = ?", (conv_id,))
-        # Reset conversation preview
-        conn.execute(
-            "UPDATE conversations SET preview = ? WHERE conv_id = ?",
-            ("New chat", conv_id),
-        )
-        conn.commit()
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-
-# Update run configuration to use port 5057 for API only
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5057, debug=True)

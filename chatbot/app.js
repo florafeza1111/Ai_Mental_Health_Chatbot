@@ -1,10 +1,14 @@
 (() => {
-  const API_ROOT = "http://localhost:5057"; // adjust if backend is hosted elsewhere
-  const signInBtn = document.getElementById("signInBtn");
-  const registerBtn = document.getElementById("registerBtn");
-  const anonBtn = document.getElementById("anonBtn");
-  const usernameInput = document.getElementById("usernameInput");
-  const passwordInput = document.getElementById("passwordInput");
+  const API_ROOT = "http://localhost:5057"; // Flask API server
+  
+  // Check authentication
+  const account = localStorage.getItem("aimhsa_account");
+  if (!account) {
+      window.location.href = '/login';
+      return;
+  }
+  
+  // Elements
   const messagesEl = document.getElementById("messages");
   const form = document.getElementById("form");
   const queryInput = document.getElementById("query");
@@ -13,15 +17,18 @@
   const composer = form; // composer container (used for inserting preview)
   const historyList = document.getElementById("historyList");
   const newChatBtn = document.getElementById("newChatBtn");
-
+  const clearChatBtn = document.getElementById("clearChatBtn");
+  const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const usernameEl = document.getElementById("username");
+  
   let convId = localStorage.getItem("aimhsa_conv") || null;
-  let account = localStorage.getItem("aimhsa_account") || null;
   let typingEl = null;
   let currentPreview = null;
-
-  // prefill username field from localStorage if available
-  if (usernameInput && account) usernameInput.value = account;
-
+  
+  // Set username
+  usernameEl.textContent = account === 'null' ? 'Guest' : account;
+  
   // Inject runtime CSS for animations & preview (keeps frontend simple)
   (function injectStyles(){
     const css = `
@@ -68,45 +75,62 @@
     });
   }
 
+  // Logout handler
+  logoutBtn.addEventListener("click", () => {
+      localStorage.removeItem("aimhsa_account");
+      localStorage.removeItem("aimhsa_conv");
+      window.location.href = '/login';
+  });
+  
+  // Modern message display
   function appendMessage(role, text) {
-    const el = document.createElement("div");
-    el.className = "msg " + (role === "user" ? "user" : "bot") + " fade-in";
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = role === "user" ? "You" : "AIMHSA";
-    const content = document.createElement("div");
-    content.className = "content";
-    content.textContent = text;
-    el.appendChild(meta);
-    el.appendChild(content);
-    messagesEl.appendChild(el);
-    ensureScroll();
-    return el;
+      const msgDiv = document.createElement("div");
+      msgDiv.className = `msg ${role === "user" ? "user" : "bot"}`;
+      
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "msg-content";
+      
+      const metaDiv = document.createElement("div");
+      metaDiv.className = "msg-meta";
+      metaDiv.textContent = role === "user" ? "You" : "AIMHSA";
+      
+      const textDiv = document.createElement("div");
+      textDiv.className = "msg-text";
+      textDiv.textContent = text;
+      
+      contentDiv.appendChild(metaDiv);
+      contentDiv.appendChild(textDiv);
+      msgDiv.appendChild(contentDiv);
+      
+      messagesEl.appendChild(msgDiv);
+      ensureScroll();
+      return msgDiv;
   }
-
+  
   function createTypingIndicator() {
-    if (typingEl) return;
-    typingEl = document.createElement("div");
-    typingEl.className = "msg bot typing fade-in";
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = "AIMHSA";
-    const dots = document.createElement("div");
-    dots.className = "dots";
-    dots.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-    typingEl.appendChild(meta);
-    typingEl.appendChild(dots);
-    messagesEl.appendChild(typingEl);
-    ensureScroll();
+      if (typingEl) return;
+      typingEl = document.createElement("div");
+      typingEl.className = "msg bot";
+      
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "typing";
+      
+      const dotsDiv = document.createElement("div");
+      dotsDiv.className = "typing-dots";
+      dotsDiv.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+      
+      contentDiv.appendChild(dotsDiv);
+      typingEl.appendChild(contentDiv);
+      messagesEl.appendChild(typingEl);
+      ensureScroll();
   }
-
+  
   function removeTypingIndicator() {
-    if (!typingEl) return;
-    typingEl.remove();
-    typingEl = null;
-    ensureScroll();
+      if (!typingEl) return;
+      typingEl.remove();
+      typingEl = null;
   }
-
+  
   async function api(path, opts) {
     const url = API_ROOT + path;
     const res = await fetch(url, opts);
@@ -162,12 +186,31 @@
     }
   }
 
+  // Auto-resize textarea
+  function autoResizeTextarea() {
+    queryInput.style.height = 'auto';
+    const scrollHeight = queryInput.scrollHeight;
+    const maxHeight = 120; // Match CSS max-height
+    queryInput.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+  }
+
+  // Add textarea auto-resize listener
+  queryInput.addEventListener('input', autoResizeTextarea);
+  queryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.dispatchEvent(new Event('submit'));
+    }
+  });
+
   async function sendMessage(query) {
     if (!query) return;
     disableComposer(true);
     appendMessage("user", query);
     createTypingIndicator();
     queryInput.value = "";
+    autoResizeTextarea(); // Reset textarea height
+    
     try {
       // include account so server can bind new convs to the logged-in user
       const payload = { id: convId, query, history: [] };
@@ -257,7 +300,7 @@
   }
 
   // Use XHR for upload to track progress
-  function uploadPdf(file, question) {
+  function uploadPdf(file) {
     if (!file) return;
     disableComposer(true);
     showUploadPreview(file);
@@ -281,10 +324,8 @@
         if (xhr.status >= 200 && xhr.status < 300) {
           convId = data.id;
           localStorage.setItem("aimhsa_conv", convId);
-          appendMessage("bot", `Uploaded ${data.filename}`);
-          if (data.answer) appendMessage("assistant", data.answer);
+          appendMessage("bot", `Uploaded ${data.filename}. What would you like to know about this document?`);
           clearUploadPreview();
-          loadHistory();
           if (account) updateHistoryList();
         } else {
           appendMessage("bot", "PDF upload failed: " + (data.error || xhr.statusText));
@@ -302,7 +343,6 @@
     const fd = new FormData();
     fd.append("file", file, file.name);
     if (convId) fd.append("id", convId);
-    if (question) fd.append("question", question);
     if (account) fd.append("account", account);
     xhr.send(fd);
   }
@@ -321,63 +361,85 @@
     }
   }
 
-  // Login handler: verify credentials with backend, then initialize session
-  signInBtn.addEventListener("click", async () => {
-    const username = (usernameInput.value || "").trim();
-    const password = (passwordInput.value || "").trim();
-    if (!username || !password) {
-      appendMessage("bot", "Enter username and password to sign in.");
+  // New chat: require account (server enforces too)
+  newChatBtn.addEventListener('click', async () => {
+    if (!account) {
+      appendMessage("bot", "Please sign in to create and view saved conversations.");
       return;
     }
     try {
-      const res = await api("/login", {
+      const payload = { account };
+      const resp = await api("/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(payload)
       });
-      account = res.account || username;
-      localStorage.setItem("aimhsa_account", account);
-      passwordInput.value = "";
-      await initSession(true);
-      appendMessage("bot", "Signed in.");
-    } catch (err) {
-      console.error("login error", err);
-      appendMessage("bot", "Login failed. Check credentials.");
+      if (resp && resp.id) {
+        convId = resp.id;
+        localStorage.setItem("aimhsa_conv", convId);
+        messagesEl.innerHTML = '';
+        await updateHistoryList();
+      }
+    } catch (e) {
+      console.error("failed to create conversation", e);
+      appendMessage("bot", "Could not start new conversation. Try again.");
     }
   });
 
-  // Register handler: create account then auto-login
-  registerBtn.addEventListener("click", async () => {
-    const username = (usernameInput.value || "").trim();
-    const password = (passwordInput.value || "").trim();
-    if (!username || !password) {
-      appendMessage("bot", "Enter username and password to register.");
-      return;
-    }
-    try {
-      await api("/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      account = username;
-      localStorage.setItem("aimhsa_account", account);
-      passwordInput.value = "";
-      appendMessage("bot", "Registered. Signed in.");
-      await initSession(true);
-      await updateHistoryList();
-    } catch (err) {
-      console.error("register error", err);
-      appendMessage("bot", "Registration failed (username may exist).");
+  // Clear only visual messages
+  clearChatBtn.addEventListener("click", () => {
+    if (!convId) return;
+    
+    if (confirm("Clear current messages? This will only clear the visible chat.")) {
+      messagesEl.innerHTML = "";
+      appendMessage("bot", "Messages cleared. How can I help you?");
     }
   });
 
-  anonBtn.addEventListener("click", async () => {
-    account = null;
-    localStorage.removeItem("aimhsa_account");
-    // init anonymous session (bound to IP)
-    await initSession(false);
-    await updateHistoryList();
+  // Clear server-side history
+  clearHistoryBtn.addEventListener("click", async () => {
+    if (!convId) return;
+    
+    if (confirm("Are you sure? This will permanently clear all saved messages and attachments.")) {
+      try {
+        await api("/clear_chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: convId })
+        });
+        
+        // Clear both messages and conversation history
+        messagesEl.innerHTML = "";
+        historyList.innerHTML = "";
+        
+        // Add default "no conversations" message
+        const note = document.createElement('div');
+        note.className = 'small';
+        note.style.padding = '12px';
+        note.style.color = 'var(--muted)';
+        note.textContent = 'No conversations yet. Start a new chat!';
+        historyList.appendChild(note);
+        
+        appendMessage("bot", "Chat history cleared. How can I help you?");
+        
+        // Start a new conversation
+        const payload = { account };
+        const resp = await api("/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        if (resp && resp.id) {
+          convId = resp.id;
+          localStorage.setItem("aimhsa_conv", convId);
+          await updateHistoryList();
+        }
+      } catch (err) {
+        console.error("Failed to clear chat history", err);
+        appendMessage("bot", "Failed to clear chat history on server. Try again.");
+      }
+    }
   });
 
   // show preview when file selected
@@ -387,21 +449,59 @@
     else clearUploadPreview();
   });
 
+  const app = document.querySelector('.app');
+  
+  // Replace existing drag/drop handlers with:
+  document.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (!e.dataTransfer.types.includes('Files')) return;
+    app.classList.add('dragging');
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    // Only remove if actually leaving the app
+    if (e.target === document || e.target === app) {
+      app.classList.remove('dragging');
+    }
+  });
+
+  document.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    app.classList.remove('dragging');
+    
+    const files = Array.from(e.dataTransfer.files);
+    const pdfFile = files.find(f => f.type === 'application/pdf');
+    
+    if (pdfFile) {
+      fileInput.files = e.dataTransfer.files;
+      const event = new Event('change');
+      fileInput.dispatchEvent(event);
+      uploadPdf(pdfFile);
+    } else {
+      appendMessage('bot', 'Please drop a PDF file.');
+    }
+  });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const q = queryInput.value.trim();
     if (!q && !fileInput.files[0]) return;
+    
     const file = fileInput.files[0];
     if (file) {
-      uploadPdf(file, q || "");
+      uploadPdf(file);
       fileInput.value = "";
     } else {
-      // ensure a convId exists for anonymous users too (initSession will create one)
+      // ensure a convId exists for anonymous users too
       if (!convId) {
         convId = newConvId();
         localStorage.setItem("aimhsa_conv", convId);
       }
-      // include account via initSession when logged in; /ask payload includes account
       sendMessage(q);
     }
   });
@@ -409,11 +509,11 @@
   // require signed-in account for server-backed conversations; otherwise show prompt
   async function updateHistoryList() {
     historyList.innerHTML = '';
-    if (!account) {
+    if (!account || account === 'null') {
       const note = document.createElement('div');
       note.className = 'small';
       note.style.padding = '12px';
-      note.style.color = 'var(--muted)';
+      note.style.color = 'var(--text-muted)';
       note.textContent = 'Sign in to view and manage your conversation history.';
       historyList.appendChild(note);
       newChatBtn.disabled = true;
@@ -456,31 +556,6 @@
     await loadHistory();
     await updateHistoryList();
   }
-
-  // New chat: require account (server enforces too)
-  newChatBtn.addEventListener('click', async () => {
-    if (!account) {
-      appendMessage("bot", "Please sign in to create and view saved conversations.");
-      return;
-    }
-    try {
-      const payload = { account };
-      const resp = await api("/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (resp && resp.id) {
-        convId = resp.id;
-        localStorage.setItem("aimhsa_conv", convId);
-        messagesEl.innerHTML = '';
-        await updateHistoryList();
-      }
-    } catch (e) {
-      console.error("failed to create conversation", e);
-      appendMessage("bot", "Could not start new conversation. Try again.");
-    }
-  });
 
   // initial load: start session (account-bound when available) and refresh history list
   (async () => {

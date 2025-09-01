@@ -1,11 +1,3 @@
-🇷🇼 Rwanda Emergency Mental Health Contacts:
-
-- CARAES Ndera Hospital: +250 788 305 703
-- Mental Health Hotline: 105
-- HDI Rwanda Counseling: +250 782 290 352
-- ARCT Ruhuka Trauma Counseling: +250 788 304 454
-- Youth Helpline: 116
-
 Mental Health Facilities in Rwanda — Full District Coverage
 
 1. CARAES Ndera Neuropsychiatric Teaching Hospital located in Gasabo District, Kigali City  
@@ -41,8 +33,3 @@ Major District-Level Facilities by Province:
 - Nyanza Hospital located in– Nyanza District  
 - Nyamata Hospital located in– Bugesera District  
 - Others (Kigeme, Gitwe, etc.) offer mental health services:contentReference[oaicite:4]{index=4}  
-
-
-In case of immediate danger or suicidal thoughts:
-Call 112 for the Rwanda National Police.
-

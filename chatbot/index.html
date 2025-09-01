@@ -1,48 +1,70 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<title>AIMHSA Chat</title>
-	<link rel="stylesheet" href="style.css?13263" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AIMHSA Chat</title>
+    <link rel="stylesheet" href="style.css?hnb" />
 </head>
 <body>
-	<div class="app">
-		<aside class="sidebar">
-			<div class="sidebar-header">
-				<div class="brand">AIMHSA</div>
-				<button id="newChatBtn" class="start-over">New Chat</button>
-			</div>
-			<div class="history-list" id="historyList">
-				<!-- Chat history items will be dynamically added here -->
-			</div>
-		</aside>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-info">
+                    <div class="avatar">👤</div>
+                    <div class="user-details">
+                        <div class="username" id="username">Guest</div>
+                        <div class="status">Online</div>
+                    </div>
+                </div>
+                <button id="newChatBtn" class="new-chat-btn">
+                    <span>+</span> New Chat
+                </button>
+            </div>
+            
+            <div class="history-section">
+                <h3>Recent Conversations</h3>
+                <div class="history-list" id="historyList">
+                    <!-- Chat history items will be dynamically added here -->
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="logout-btn">Sign Out</button>
+            </div>
+        </aside>
 
-		<div class="main-content">
-			<header class="app-header">
-				<div class="controls">
-					<input id="usernameInput" placeholder="Username" />
-					<input id="passwordInput" type="password" placeholder="Password" />
-					<button id="signInBtn">Sign In</button>
-					<button id="registerBtn">Register</button>
-					<button id="anonBtn">Use Anonymous (IP)</button>
-				</div>
-			</header>
+        <main class="chat-area">
+            <header class="chat-header">
+                <div class="chat-title">
+                    <h2>AIMHSA</h2>
+                    <span class="chat-subtitle">Mental Health Companion</span>
+                </div>
+                <div class="chat-actions">
+                    <button id="clearChatBtn" class="action-btn clear">Clear Messages</button>
+                    <button id="clearHistoryBtn" class="action-btn danger">Clear History</button>
+                </div>
+            </header>
 
-			<main class="chat">
-				<div id="messages" class="messages"></div>
-				<form id="form" class="composer">
-					<input id="query" autocomplete="off" placeholder="Ask AIMHSA..." />
-					<label class="file-btn">
-						<input id="file" type="file" accept="application/pdf" />
-						📎
-					</label>
-					<button id="send">Send</button>
-				</form>
-			</main>
-		</div>
-	</div>
+            <div class="messages-container">
+                <div id="messages" class="messages"></div>
+            </div>
 
-	<script src="app.js?12536"></script>
+            <form id="form" class="message-composer">
+                <div class="composer-input">
+                    <textarea id="query" autocomplete="off" placeholder="Type your message..." rows="1"></textarea>
+                    <label class="file-upload-btn" title="Upload PDF">
+                        <input id="file" type="file" accept="application/pdf" />
+                        📎
+                    </label>
+                    <button type="submit" id="send" class="send-btn">
+                        <span>→</span>
+                    </button>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
