@@ -21,10 +21,12 @@
   const clearHistoryBtn = document.getElementById("clearHistoryBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const usernameEl = document.getElementById("username");
+  const archivedList = document.getElementById("archivedList");
   
   let convId = localStorage.getItem("aimhsa_conv") || null;
   let typingEl = null;
   let currentPreview = null;
+  const archivedPwById = new Map();
   
   // Set username
   usernameEl.textContent = account === 'null' ? 'Guest' : account;
@@ -169,7 +171,9 @@
   async function loadHistory() {
     if (!convId) return;
     try {
-      const resp = await api("/history?id=" + encodeURIComponent(convId));
+      const pw = archivedPwById.get(convId);
+      const url = "/history?id=" + encodeURIComponent(convId) + (pw ? ("&password=" + encodeURIComponent(pw)) : "");
+      const resp = await api(url);
       messagesEl.innerHTML = "";
       const hist = resp.history || [];
       for (const m of hist) {
@@ -509,6 +513,7 @@
   // require signed-in account for server-backed conversations; otherwise show prompt
   async function updateHistoryList() {
     historyList.innerHTML = '';
+    if (archivedList) archivedList.innerHTML = '';
     if (!account || account === 'null') {
       const note = document.createElement('div');
       note.className = 'small';
@@ -530,12 +535,202 @@
       for (const historyData of entries) {
         const item = document.createElement('div');
         item.className = 'history-item' + (historyData.id === convId ? ' active' : '');
+
         const preview = document.createElement('div');
         preview.className = 'history-preview';
         preview.textContent = historyData.preview || 'New chat';
-        item.appendChild(preview);
+        preview.title = historyData.preview || 'New chat';
+
+        // three-dot menu button
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'history-menu-btn';
+        menuBtn.setAttribute('aria-label', 'Conversation actions');
+        menuBtn.title = 'More';
+        menuBtn.textContent = '...';
+
+        // dropdown menu
+        const menu = document.createElement('div');
+        menu.className = 'history-menu';
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = 'Rename';
+        const archiveBtn = document.createElement('button');
+        archiveBtn.textContent = 'Archive';
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'danger';
+        menu.appendChild(renameBtn);
+        menu.appendChild(archiveBtn);
+        menu.appendChild(deleteBtn);
+        // rename
+        renameBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const title = prompt('Rename conversation to:');
+          if (title == null || title.trim() === '') return;
+          try {
+            await api('/conversations/rename', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ account, id: historyData.id, preview: title })
+            });
+            await updateHistoryList();
+          } catch (err) {
+            appendMessage('bot', 'Failed to rename conversation.');
+          }
+        });
+
+        // selection
         item.addEventListener('click', () => switchConversation(historyData.id));
+
+        // open/close menu
+        menuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = menu.classList.contains('open');
+          document.querySelectorAll('.history-menu.open').forEach(m => m.classList.remove('open'));
+          if (!isOpen) menu.classList.add('open');
+        });
+
+        document.addEventListener('click', () => {
+          menu.classList.remove('open');
+        });
+
+        // archive (password required)
+        archiveBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          let pw = prompt('Set a password to archive this conversation (required).');
+          if (pw == null || pw.trim() === '') { appendMessage('bot', 'Archive cancelled: password required.'); return; }
+          try {
+            await api('/conversations/archive', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ account, id: historyData.id, archived: true, password: pw || '' })
+            });
+            if (historyData.id === convId) {
+              messagesEl.innerHTML = '';
+              convId = null;
+              localStorage.removeItem('aimhsa_conv');
+            }
+            await updateHistoryList();
+          } catch (err) {
+            console.error('archive conversation failed', err);
+            appendMessage('bot', 'Failed to archive conversation.');
+          }
+        });
+
+        // delete
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('Delete this conversation? This cannot be undone.')) return;
+          try {
+            await api('/conversations/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ account, id: historyData.id })
+            });
+            if (historyData.id === convId) {
+              messagesEl.innerHTML = '';
+              convId = null;
+              localStorage.removeItem('aimhsa_conv');
+            }
+            await updateHistoryList();
+          } catch (err) {
+            console.error('delete conversation failed', err);
+            appendMessage('bot', 'Failed to delete conversation.');
+          }
+        });
+
+        item.appendChild(preview);
+        item.appendChild(menuBtn);
+        item.appendChild(menu);
         historyList.appendChild(item);
+      }
+      // load archived
+      try {
+        const ar = await api('/conversations/archived' + q, { method: 'GET' });
+        const archivedEntries = ar.conversations || [];
+        for (const h of archivedEntries) {
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          const preview = document.createElement('div');
+          preview.className = 'history-preview';
+          preview.textContent = h.preview || 'New chat';
+          preview.title = h.preview || 'New chat';
+
+          const menuBtn = document.createElement('button');
+          menuBtn.className = 'history-menu-btn';
+          menuBtn.textContent = '...';
+          const menu = document.createElement('div');
+          menu.className = 'history-menu';
+          const unarchiveBtn = document.createElement('button');
+          unarchiveBtn.textContent = 'Unarchive';
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.className = 'danger';
+          // do not allow rename for archived
+          menu.appendChild(unarchiveBtn);
+          menu.appendChild(deleteBtn);
+
+          item.addEventListener('click', async () => {
+            try {
+              await api('/history?id=' + encodeURIComponent(h.id));
+              archivedPwById.delete(h.id);
+              await switchConversation(h.id);
+            } catch (e) {
+              try {
+                const pw = prompt('Enter password to open this archived conversation:');
+                if (pw == null) return;
+                await api('/history?id=' + encodeURIComponent(h.id) + '&password=' + encodeURIComponent(pw));
+                archivedPwById.set(h.id, pw);
+                await switchConversation(h.id);
+              } catch (e2) {
+                appendMessage('bot', 'Incorrect or missing password.');
+              }
+            }
+          });
+          menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = menu.classList.contains('open');
+            document.querySelectorAll('.history-menu.open').forEach(m => m.classList.remove('open'));
+            if (!isOpen) menu.classList.add('open');
+          });
+          document.addEventListener('click', () => { menu.classList.remove('open'); });
+
+          unarchiveBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const pw = prompt('Enter archive password to unarchive:');
+            if (pw == null || pw.trim() === '') { appendMessage('bot', 'Unarchive cancelled: password required.'); return; }
+            try {
+              await api('/conversations/archive', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ account, id: h.id, archived: false, password: pw })
+              });
+              await updateHistoryList();
+            } catch (err) {
+              appendMessage('bot', 'Failed to unarchive conversation.');
+            }
+          });
+          deleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!confirm('Delete this conversation? This cannot be undone.')) return;
+            const pw = prompt('Enter archive password to delete:');
+            if (pw == null || pw.trim() === '') { appendMessage('bot', 'Delete cancelled: password required.'); return; }
+            try {
+              await api('/conversations/delete', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ account, id: h.id, password: pw })
+              });
+              await updateHistoryList();
+            } catch (err) {
+              appendMessage('bot', 'Failed to delete conversation.');
+            }
+          });
+
+          item.appendChild(preview);
+          item.appendChild(menuBtn);
+          item.appendChild(menu);
+          if (archivedList) archivedList.appendChild(item);
+        }
+      } catch (e2) {
+        // ignore archived load errors, show main list anyway
       }
     } catch (e) {
       console.warn("failed to load conversations", e);

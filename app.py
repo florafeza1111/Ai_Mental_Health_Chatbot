@@ -17,7 +17,7 @@ load_dotenv()
 DATA_DIR = "data"  # knowledgebase directory containing source files
 STORAGE_DIR = "storage"
 EMBED_FILE = os.path.join(STORAGE_DIR, "embeddings.json")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2:3b")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 # sentence-level embedder used for query / semantic search (can be same as EMBED_MODEL or a dedicated sentence model)
 SENT_EMBED_MODEL = os.getenv("SENT_EMBED_MODEL", EMBED_MODEL)
@@ -80,6 +80,16 @@ def init_storage():
                 ts REAL
             )
         """)
+        # Add archived column if missing
+        try:
+            cur = conn.execute("PRAGMA table_info(conversations)")
+            cols = [r[1] for r in cur.fetchall()]
+            if "archived" not in cols:
+                conn.execute("ALTER TABLE conversations ADD COLUMN archived INTEGER DEFAULT 0")
+            if "archive_pw_hash" not in cols:
+                conn.execute("ALTER TABLE conversations ADD COLUMN archive_pw_hash TEXT")
+        except Exception:
+            pass
         conn.commit()
     finally:
         conn.close()
@@ -380,8 +390,13 @@ def retrieve(query: str, k: int = 4, lambda_param: float = 0.6):
                 raise
     else:
         # default: use ollama embed API
-        q_emb_resp = ollama.embed(model=SENT_EMBED_MODEL, input=[query])
-        q_emb = np.array(q_emb_resp["embeddings"], dtype=np.float32)
+        try:
+            q_emb_resp = ollama.embed(model=SENT_EMBED_MODEL, input=[query])
+            q_emb = np.array(q_emb_resp["embeddings"], dtype=np.float32)
+        except Exception as e:
+            app.logger.error(f"Failed to embed query with {SENT_EMBED_MODEL}: {e}")
+            # Return empty results if embedding fails
+            return []
 
     # ensure chunk_embeddings shape OK
     if chunk_embeddings.size == 0:
@@ -453,7 +468,7 @@ def list_conversations(owner_key: str):
     conn = sqlite3.connect(DB_FILE)
     try:
         cur = conn.execute(
-            "SELECT conv_id, preview, ts FROM conversations WHERE owner_key = ? ORDER BY ts DESC",
+            "SELECT conv_id, preview, ts FROM conversations WHERE owner_key = ? AND IFNULL(archived,0) = 0 ORDER BY ts DESC",
             (owner_key,),
         )
         rows = cur.fetchall()
@@ -566,7 +581,9 @@ CONTEXT:
         reply = ollama.chat(model=CHAT_MODEL, messages=messages)
         answer = reply["message"]["content"]
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        app.logger.error(f"Failed to get chat response with {CHAT_MODEL}: {e}")
+        # Provide a fallback response when the model is not available
+        answer = f"I'm sorry, I'm having trouble accessing my AI model right now. However, I can still help you with mental health resources in Rwanda. Please contact the Mental Health Hotline at 105 or CARAES Ndera Hospital at +250 788 305 703 for immediate support. You can also try refreshing the page or contacting support if this issue persists."
 
     # persist the current user RAW query (not the constructed user_prompt) and assistant reply
     save_message(conv_id, "user", query)
@@ -684,9 +701,20 @@ def history():
     Returns: { "id": "<conv_id>", "history": [ {role, content}, ... ], "attachments": [ {filename,text}, ... ] }
     """
     conv_id = request.args.get("id")
+    password = (request.args.get("password") or "").strip()
     if not conv_id:
         return jsonify({"error": "Missing 'id' parameter"}), 400
     try:
+        # if conversation is archived and locked, require password to view history
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cur = conn.execute("SELECT IFNULL(archived,0), archive_pw_hash FROM conversations WHERE conv_id = ?", (conv_id,))
+            row = cur.fetchone()
+        finally:
+            conn.close()
+        if row and int(row[0]) == 1 and row[1]:
+            if not password or not check_password_hash(row[1], password):
+                return jsonify({"error": "password required"}), 403
         hist = load_history(conv_id)
         atts = load_attachments(conv_id)
         return jsonify({"id": conv_id, "history": hist, "attachments": atts})
@@ -878,6 +906,114 @@ def get_conversations_endpoint():
         app.logger.exception("failed to list conversations")
         return jsonify({"error": str(e)}), 500
 
+@app.post("/conversations/rename")
+def rename_conversation():
+    """
+    POST /conversations/rename
+    JSON: { "account": "...", "id": "<conv_id>", "preview": "<new title>" }
+    """
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+    account = (data.get("account") or "").strip()
+    conv_id = (data.get("id") or "").strip()
+    preview = (data.get("preview") or "").strip()
+    if not account or not conv_id or not preview:
+        return jsonify({"error": "account, id and preview required"}), 400
+    owner_key = f"acct:{account}"
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("SELECT owner_key, IFNULL(archived,0) FROM conversations WHERE conv_id = ?", (conv_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "conversation not found"}), 404
+        if (row[0] or "") != owner_key:
+            return jsonify({"error": "forbidden"}), 403
+        if int(row[1]) == 1:
+            return jsonify({"error": "cannot rename archived conversation"}), 403
+        conn.execute("UPDATE conversations SET preview = ?, ts = ? WHERE conv_id = ?", (preview[:120], time.time(), conv_id))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.get("/conversations/archived")
+def get_archived_conversations_endpoint():
+    """
+    GET /conversations/archived?account=<required>
+    Returns archived conversations for this account
+    """
+    account = (request.args.get("account") or "").strip()
+    if not account:
+        return jsonify({"error": "Account required to list conversations"}), 403
+    key = f"acct:{account}"
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute(
+            "SELECT conv_id, preview, ts, CASE WHEN archive_pw_hash IS NULL OR archive_pw_hash = '' THEN 0 ELSE 1 END AS locked FROM conversations WHERE owner_key = ? AND IFNULL(archived,0) = 1 ORDER BY ts DESC",
+            (key,),
+        )
+        rows = cur.fetchall()
+        items = [{"id": r[0], "preview": r[1] or "New chat", "timestamp": r[2], "locked": bool(r[3])} for r in rows]
+        return jsonify({"conversations": items})
+    except Exception as e:
+        app.logger.exception("failed to list archived conversations")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.post("/conversations/archive")
+def archive_conversation():
+    """
+    POST /conversations/archive
+    JSON: { "account": "...", "id": "<conv_id>", "archived": true|false }
+    """
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+    account = (data.get("account") or "").strip()
+    conv_id = (data.get("id") or "").strip()
+    archived = bool(data.get("archived", True))
+    password = (data.get("password") or "").strip()
+    if not account or not conv_id:
+        return jsonify({"error": "account and id required"}), 400
+    owner_key = f"acct:{account}"
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("SELECT owner_key FROM conversations WHERE conv_id = ?", (conv_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "conversation not found"}), 404
+        if (row[0] or "") != owner_key:
+            return jsonify({"error": "forbidden"}), 403
+        # when archiving, password is REQUIRED; when unarchiving, password MUST match
+        if archived:
+            if not password:
+                return jsonify({"error": "password required to archive"}), 400
+            pw_hash = generate_password_hash(password)
+            conn.execute("UPDATE conversations SET archive_pw_hash = ? WHERE conv_id = ?", (pw_hash, conv_id))
+        else:
+            cur = conn.execute("SELECT archive_pw_hash FROM conversations WHERE conv_id = ?", (conv_id,))
+            row = cur.fetchone()
+            if row and row[0]:
+                if not password or not check_password_hash(row[0], password):
+                    return jsonify({"error": "invalid password"}), 403
+            # clear hash on successful unarchive
+            conn.execute("UPDATE conversations SET archive_pw_hash = NULL WHERE conv_id = ?", (conv_id,))
+        conn.execute("UPDATE conversations SET archived = ? WHERE conv_id = ?", (1 if archived else 0, conv_id))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
 @app.post("/register")
 def register():
     """
@@ -955,6 +1091,53 @@ def clear_chat():
         conn.commit()
         return jsonify({"ok": True})
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+# --- delete a conversation (requires account owner) ---
+@app.post("/conversations/delete")
+def delete_conversation():
+    """
+    POST /conversations/delete
+    JSON: { "account": "...", "id": "<conv_id>" }
+    Only allows deletion when the conversation owner matches acct:<account>.
+    """
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    account = (data.get("account") or "").strip()
+    conv_id = (data.get("id") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not account or not conv_id:
+        return jsonify({"error": "account and id required"}), 400
+
+    owner_key = f"acct:{account}"
+
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("SELECT owner_key, IFNULL(archived,0), archive_pw_hash FROM conversations WHERE conv_id = ?", (conv_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "conversation not found"}), 404
+        if (row[0] or "") != owner_key:
+            return jsonify({"error": "forbidden"}), 403
+        # If archived and locked, require correct password to delete
+        if int(row[1]) == 1 and row[2]:
+            if not password or not check_password_hash(row[2], password):
+                return jsonify({"error": "invalid password"}), 403
+
+        # delete related rows
+        conn.execute("DELETE FROM messages WHERE conv_id = ?", (conv_id,))
+        conn.execute("DELETE FROM attachments WHERE conv_id = ?", (conv_id,))
+        conn.execute("DELETE FROM sessions WHERE conv_id = ?", (conv_id,))
+        conn.execute("DELETE FROM conversations WHERE conv_id = ?", (conv_id,))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
