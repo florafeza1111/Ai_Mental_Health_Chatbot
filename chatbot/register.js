@@ -35,7 +35,7 @@
         if (account) {
             localStorage.setItem('aimhsa_account', account);
         }
-        window.location.href = '/';
+        window.location.href = '/index.html';
     }
     
     // Registration form submission

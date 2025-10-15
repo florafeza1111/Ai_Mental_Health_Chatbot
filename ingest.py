@@ -60,9 +60,17 @@ for fp in DATA_DIR.glob("**/*"):
 # --- Generate embeddings with Ollama ---
 if new_chunks:
     texts = [c["text"] for c in new_chunks]
-    emb_res = ollama.embed(model=EMBED_MODEL, input=texts)
-    embeddings = emb_res["embeddings"]
-
+    
+    # Generate embeddings one by one (ollama doesn't support batch)
+    embeddings = []
+    for text in texts:
+        try:
+            emb_res = ollama.embeddings(model=EMBED_MODEL, prompt=text)
+            embeddings.append(emb_res["embedding"])
+        except Exception as e:
+            print(f"Error embedding text: {e}")
+            embeddings.append([0.0] * 384)  # fallback with correct dimension
+    
     for c, e in zip(new_chunks, embeddings):
         c["embedding"] = e
 

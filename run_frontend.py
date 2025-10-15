@@ -11,12 +11,25 @@ class ChatBotHandler(SimpleHTTPRequestHandler):
         path = parsed_path.path
         
         # Handle routing for SPA
-        if path == '/' or path == '/index.html':
+        if path == '/':
+            # Default to the new landing page
+            self.serve_file('landing.html')
+        elif path == '/landing' or path == '/landing.html':
+            self.serve_file('landing.html')
+        elif path == '/index.html':
             self.serve_file('index.html')
         elif path == '/login':
             self.serve_file('login.html')
         elif path == '/register':
             self.serve_file('register.html')
+        elif path == '/admin_login.html':
+            self.serve_file('admin_login.html')
+        elif path == '/admin_dashboard.html':
+            self.serve_file('admin_dashboard.html')
+        elif path == '/professional_login.html':
+            self.serve_file('professional_login.html')
+        elif path == '/professional_dashboard.html':
+            self.serve_file('professional_dashboard.html')
         elif path.startswith('/') and '.' in path:
             # Static file request (css, js, etc.)
             super().do_GET()
@@ -50,7 +63,8 @@ def run_server(port: int):
     url = f"http://localhost:{port}/"
     print(f"Serving frontend at {url} (serving directory: {chatbot_dir})")
     print("Routes available:")
-    print(f"  - {url} (main app)")
+    print(f"  - {url} (landing)")
+    print(f"  - {url}landing (landing page)")
     print(f"  - {url}login (login page)")
     print(f"  - {url}register (register page)")
     

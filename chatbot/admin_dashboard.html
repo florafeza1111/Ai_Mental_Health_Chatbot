@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIMHSA Admin Dashboard</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <nav class="admin-nav">
+            <div class="nav-header">
+                <h1>AIMHSA Admin</h1>
+                <p>Therapy Booking System</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#professionals" class="nav-link active">Manage Professionals</a></li>
+                <li><a href="#bookings" class="nav-link">View Bookings</a></li>
+                <li><a href="#risk-monitor" class="nav-link">Risk Monitor</a></li>
+                <li><a href="#analytics" class="nav-link">Analytics</a></li>
+            </ul>
+            <div class="nav-footer">
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </nav>
+        
+        <main class="admin-content">
+            <!-- Professional Management Section -->
+            <section id="professionals" class="admin-section active">
+                <div class="section-header">
+                    <h2>Professional Management</h2>
+                    <div class="section-controls">
+                        <button id="addProfessionalBtn" class="btn-primary">Add New Professional</button>
+                        <div class="search-box">
+                            <input type="text" id="professionalSearch" placeholder="Search professionals...">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="professionals-grid" id="professionalsGrid">
+                    <!-- Professional cards will be loaded here -->
+                </div>
+            </section>
+            
+            <!-- Booking Management Section -->
+            <section id="bookings" class="admin-section">
+                <div class="section-header">
+                    <h2>Automated Bookings</h2>
+                    <div class="section-controls">
+                        <select id="statusFilter">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="declined">Declined</option>
+                        </select>
+                        <select id="riskLevelFilter">
+                            <option value="">All Risk Levels</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="bookings-table">
+                    <table id="bookingsTable">
+                        <thead>
+                            <tr>
+                                <th>Booking ID</th>
+                                <th>User</th>
+                                <th>Professional</th>
+                                <th>Risk Level</th>
+                                <th>Scheduled Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bookingsTableBody">
+                            <!-- Booking rows will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Risk Monitoring Section -->
+            <section id="risk-monitor" class="admin-section">
+                <div class="section-header">
+                    <h2>Real-time Risk Monitoring</h2>
+                    <div class="section-controls">
+                        <button id="refreshStatsBtn" class="btn-secondary">Refresh</button>
+                    </div>
+                </div>
+                
+                <div class="risk-dashboard">
+                    <div class="risk-stats">
+                        <div class="stat-card critical">
+                            <h3>Critical Risk</h3>
+                            <span class="stat-number" id="criticalCount">0</span>
+                        </div>
+                        <div class="stat-card high">
+                            <h3>High Risk</h3>
+                            <span class="stat-number" id="highCount">0</span>
+                        </div>
+                        <div class="stat-card medium">
+                            <h3>Medium Risk</h3>
+                            <span class="stat-number" id="mediumCount">0</span>
+                        </div>
+                        <div class="stat-card low">
+                            <h3>Low Risk</h3>
+                            <span class="stat-number" id="lowCount">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="recent-assessments">
+                        <h3>Recent Risk Assessments</h3>
+                        <div id="recentAssessments">
+                            <!-- Recent assessments will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Analytics Section -->
+            <section id="analytics" class="admin-section">
+                <div class="section-header">
+                    <h2>System Analytics</h2>
+                </div>
+                
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>Total Professionals</h3>
+                        <span class="analytics-number" id="totalProfessionals">0</span>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Active Bookings</h3>
+                        <span class="analytics-number" id="activeBookings">0</span>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Completed Sessions</h3>
+                        <span class="analytics-number" id="completedSessions">0</span>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Risk Assessments Today</h3>
+                        <span class="analytics-number" id="assessmentsToday">0</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Professional Modal -->
+    <div id="professionalModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add New Professional</h2>
+            <form id="professionalForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="username">Username *</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password *</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first_name">First Name *</label>
+                        <input type="text" id="first_name" name="first_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name">Last Name *</label>
+                        <input type="text" id="last_name" name="last_name" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone</label>
+                        <input type="tel" id="phone" name="phone">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="specialization">Specialization *</label>
+                        <select id="specialization" name="specialization" required>
+                            <option value="">Select Specialization</option>
+                            <option value="psychiatrist">Psychiatrist</option>
+                            <option value="psychologist">Psychologist</option>
+                            <option value="counselor">Counselor</option>
+                            <option value="social_worker">Social Worker</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="experience_years">Experience (Years)</label>
+                        <input type="number" id="experience_years" name="experience_years" min="0" value="0">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="expertise_areas">Expertise Areas *</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" name="expertise" value="depression"> Depression</label>
+                        <label><input type="checkbox" name="expertise" value="anxiety"> Anxiety</label>
+                        <label><input type="checkbox" name="expertise" value="ptsd"> PTSD</label>
+                        <label><input type="checkbox" name="expertise" value="trauma"> Trauma</label>
+                        <label><input type="checkbox" name="expertise" value="suicide"> Suicide Prevention</label>
+                        <label><input type="checkbox" name="expertise" value="crisis"> Crisis Intervention</label>
+                        <label><input type="checkbox" name="expertise" value="youth"> Youth Mental Health</label>
+                        <label><input type="checkbox" name="expertise" value="family"> Family Therapy</label>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="district">District</label>
+                        <input type="text" id="district" name="district" placeholder="e.g., Gasabo, Kigali">
+                    </div>
+                    <div class="form-group">
+                        <label for="consultation_fee">Consultation Fee (RWF)</label>
+                        <input type="number" id="consultation_fee" name="consultation_fee" min="0">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="bio">Bio</label>
+                    <textarea id="bio" name="bio" rows="3" placeholder="Brief professional background..."></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Professional</button>
+                    <button type="button" class="btn-secondary" id="cancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Booking Details Modal -->
+    <div id="bookingModal" class="modal">
+        <div class="modal-content large">
+            <span class="close">&times;</span>
+            <h2>Booking Details</h2>
+            <div id="bookingDetails">
+                <!-- Booking details will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    
+    <script src="admin.js"></script>
+</body>
+</html>

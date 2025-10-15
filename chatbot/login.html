@@ -14,15 +14,32 @@
                 <p class="subtitle">Mental Health Companion for Rwanda</p>
             </div>
             
-            <form class="auth-form" id="loginForm">
+	            <form class="auth-form" id="loginForm" novalidate>
                 <div class="form-group">
                     <label for="loginUsername">Username</label>
-                    <input type="text" id="loginUsername" name="loginUsername" required />
+	                    <input type="text" id="loginUsername" name="loginUsername" autocomplete="username" required />
+	                    <div class="input-hint" id="usernameHint" aria-live="polite"></div>
                 </div>
-                <div class="form-group">
+	                <div class="form-group">
                     <label for="loginPassword">Password</label>
-                    <input type="password" id="loginPassword" name="loginPassword" required />
+	                    <div class="password-field">
+	                        <input type="password" id="loginPassword" name="loginPassword" autocomplete="current-password" required />
+	                        <button type="button" class="toggle-password" id="togglePassword" aria-label="Show password" aria-pressed="false">👁️</button>
+	                    </div>
+	                    <div class="input-row">
+	                        <div class="password-meter" id="passwordMeter" aria-hidden="true">
+	                            <div class="password-meter-bar" id="passwordMeterBar"></div>
+	                        </div>
+	                        <div class="caps-lock" id="capsLockIndicator" hidden>Caps Lock is ON</div>
+	                    </div>
                 </div>
+	                <div class="form-row">
+	                    <label class="remember-me">
+	                        <input type="checkbox" id="rememberMe" />
+	                        <span>Remember me</span>
+	                    </label>
+	                    <a class="forgot-link" id="forgotLink" href="#">Forgot password?</a>
+	                </div>
                 <button type="submit" class="auth-btn" id="signInBtn">Sign In</button>
             </form>
             
@@ -30,11 +47,77 @@
                 <p>Don't have an account? <a href="/register">Register</a></p>
             </div>
             
+            
             <div class="auth-divider">
                 <span>or</span>
             </div>
             
             <button class="anonymous-btn" id="anonBtn">Continue as Guest</button>
+	            
+	            <!-- Optional MFA Modal (shown only if server requests it) -->
+	            <div class="modal" id="mfaModal" aria-hidden="true" role="dialog" aria-modal="true">
+	                <div class="modal-backdrop" id="mfaBackdrop"></div>
+	                <div class="modal-content" role="document">
+	                    <div class="modal-header">
+	                        <h2>Two-Factor Authentication</h2>
+	                        <button type="button" class="modal-close" id="mfaClose" aria-label="Close">✕</button>
+	                    </div>
+	                    <div class="modal-body">
+	                        <p>Enter the 6-digit code from your authenticator app or SMS.</p>
+	                        <div class="form-group">
+	                            <label for="mfaCode">One-Time Code</label>
+	                            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="mfaCode" autocomplete="one-time-code" />
+	                        </div>
+	                        <div class="modal-actions">
+	                            <button type="button" class="auth-btn" id="mfaVerifyBtn">Verify</button>
+	                            <button type="button" class="secondary-btn" id="mfaResendBtn">Resend code</button>
+	                        </div>
+	                        <div class="modal-message" id="mfaMessage" aria-live="polite"></div>
+	                    </div>
+	                </div>
+	            </div>
+
+	            <!-- Forgot Password Modal -->
+	            <div class="modal" id="fpModal" aria-hidden="true" role="dialog" aria-modal="true">
+	                <div class="modal-backdrop" id="fpBackdrop"></div>
+	                <div class="modal-content" role="document">
+	                    <div class="modal-header">
+	                        <h2>Reset your password</h2>
+	                        <button type="button" class="modal-close" id="fpClose" aria-label="Close">✕</button>
+	                    </div>
+	                    <div class="modal-body">
+	                        <div class="fp-step fp-step-1">
+	                            <p>Enter your username to receive a reset code.</p>
+	                            <div class="form-group">
+	                                <label for="fpUsername">Username</label>
+	                                <input type="text" id="fpUsername" autocomplete="username" />
+	                            </div>
+
+	                            <div class="modal-actions">
+	                                <button type="button" class="auth-btn" id="fpRequestBtn">Send code</button>
+	                            </div>
+	                        </div>
+
+	                        <div class="fp-step fp-step-2 hidden">
+	                            <p>Enter the code and your new password.</p>
+	                            <div class="form-group">
+	                                <label for="fpCode">Reset Code</label>
+	                                <input type="text" id="fpCode" inputmode="numeric" maxlength="6" />
+	                            </div>
+	                            <div class="form-group">
+	                                <label for="fpNewPassword">New Password</label>
+	                                <input type="password" id="fpNewPassword" />
+	                            </div>
+	                            <div class="modal-actions">
+	                                <button type="button" class="auth-btn" id="fpApplyBtn">Reset password</button>
+	                                <button type="button" class="secondary-btn" id="fpResendBtn">Resend code</button>
+	                            </div>
+	                        </div>
+
+	                        <div class="modal-message" id="fpMessage" aria-live="polite"></div>
+	                    </div>
+	                </div>
+	            </div>
             
             <div class="auth-footer">
                 <p>By continuing, you agree to our Terms of Service and Privacy Policy</p>

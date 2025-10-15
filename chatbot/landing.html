@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIMHSA - AI Mental Health Support for Rwanda</title>
+    <link rel="stylesheet" href="landing.css?v=2">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <i class="fas fa-heart"></i>
+                <span>AIMHSA</span>
+            </div>
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading your mental health companion...</p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-heart"></i>
+                <span>AIMHSA</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#community">Community</a>
+                <a href="#resources">Resources</a>
+                <a href="#about">About</a>
+                <a href="http://localhost:8000/login" class="nav-cta">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-background">
+            <div class="hero-pattern"></div>
+            <div class="hero-float-1"></div>
+            <div class="hero-float-2"></div>
+            <div class="hero-float-3"></div>
+        </div>
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="hero-title">
+                    <span class="gradient-text">AI-Powered</span><br>
+                    Mental Health Support<br>
+                    <span class="highlight">for Rwanda</span>
+                </h1>
+                <p class="hero-description">
+                    AIMHSA provides compassionate, culturally-sensitive mental health support 
+                    through advanced AI technology. Available in English, Kinyarwanda, French, 
+                    and Kiswahili.
+                </p>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">24/7</span>
+                        <span class="stat-label">Available</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">4</span>
+                        <span class="stat-label">Languages</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">100%</span>
+                        <span class="stat-label">Confidential</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <a href="http://localhost:8000/login" class="btn-primary">
+                        <i class="fas fa-rocket"></i>
+                        Start Your Journey
+                    </a>
+                    <a href="#features" class="btn-secondary">
+                        <i class="fas fa-play"></i>
+                        Learn More
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="chat-preview">
+                    <div class="chat-header">
+                        <div class="chat-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="chat-info">
+                            <span class="chat-name">AIMHSA Assistant</span>
+                            <span class="chat-status">Online</span>
+                        </div>
+                    </div>
+                    <div class="chat-messages">
+                        <div class="message bot-message">
+                            <div class="message-content">
+                                <p>Muraho! How are you feeling today?</p>
+                            </div>
+                        </div>
+                        <div class="message user-message">
+                            <div class="message-content">
+                                <p>I've been feeling anxious lately...</p>
+                            </div>
+                        </div>
+                        <div class="message bot-message">
+                            <div class="message-content">
+                                <p>I understand. Let's talk about what's been on your mind. Remember, you're not alone in this journey.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Why Choose AIMHSA?</h2>
+                <p>Advanced AI technology meets compassionate mental health care</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-language"></i>
+                    </div>
+                    <h3>Multilingual Support</h3>
+                    <p>Communicate in English, Kinyarwanda, French, or Kiswahili. Our AI understands and responds in your preferred language.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>Privacy & Security</h3>
+                    <p>Your conversations are completely confidential. Advanced encryption and privacy protection ensure your data stays safe.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3>Trauma-Informed</h3>
+                    <p>Specially designed for Rwanda's context, understanding the unique mental health challenges and cultural sensitivities.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-medical"></i>
+                    </div>
+                    <h3>Document Analysis</h3>
+                    <p>Upload PDF documents for personalized analysis and support based on your specific mental health documents.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h3>24/7 Availability</h3>
+                    <p>Access support whenever you need it. No appointments, no waiting - immediate help is always available.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Professional Referrals</h3>
+                    <p>When needed, we connect you with local mental health professionals and resources in Rwanda.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="container">
+            <div class="about-content">
+                <div class="about-text">
+                    <h2>About AIMHSA</h2>
+                    <p class="about-intro">
+                        AIMHSA (AI Mental Health Support Assistant) is a groundbreaking platform 
+                        designed specifically for Rwanda's mental health needs.
+                    </p>
+                    <div class="about-features">
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Evidence-based mental health support</span>
+                        </div>
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Culturally sensitive and context-aware</span>
+                        </div>
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Local resource integration</span>
+                        </div>
+                        <div class="about-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Professional-grade AI technology</span>
+                        </div>
+                    </div>
+                    <p class="about-description">
+                        Our AI assistant is trained on comprehensive mental health resources 
+                        specific to Rwanda, including information about local hospitals, helplines, 
+                        and support services. We understand the unique challenges faced by 
+                        Rwandans and provide culturally appropriate support.
+                    </p>
+                </div>
+                <div class="about-visual">
+                    <div class="stats-container">
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <i class="fas fa-hospital"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-number">50+</span>
+                                <span class="stat-label">Mental Health Resources</span>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-number">24/7</span>
+                                <span class="stat-label">Emergency Support</span>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <i class="fas fa-graduation-cap"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-number">100%</span>
+                                <span class="stat-label">Evidence-Based</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Emergency Section -->
+    <section class="emergency">
+        <div class="container">
+            <div class="emergency-content">
+                <div class="emergency-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="emergency-text">
+                    <h3>In Crisis? Need Immediate Help?</h3>
+                    <p>If you're experiencing a mental health crisis or having thoughts of self-harm, please contact emergency services immediately.</p>
+                    <div class="emergency-contacts">
+                        <div class="contact-item">
+                            <strong>Mental Health Hotline:</strong> 105
+                        </div>
+                        <div class="contact-item">
+                            <strong>CARAES Ndera Hospital:</strong> +250 788 305 703
+                        </div>
+                        <div class="contact-item">
+                            <strong>Emergency SMS:</strong> Text "HELP" to 105
+                        </div>
+                    </div>
+                    <div class="emergency-actions">
+                        <button class="btn-emergency" onclick="callEmergency('105')">
+                            <i class="fas fa-phone"></i>
+                            Call Hotline
+                        </button>
+                        <button class="btn-emergency secondary" onclick="sendEmergencySMS()">
+                            <i class="fas fa-sms"></i>
+                            Send Emergency SMS
+                        </button>
+                        <button class="btn-emergency secondary" onclick="findNearbyHelp()">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Find Nearby Help
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Community Section -->
+    <section id="community" class="community">
+        <div class="container">
+            <div class="section-header">
+                <h2>Join Our Support Community</h2>
+                <p>Connect with others who understand. Share experiences, offer support, and find hope together.</p>
+            </div>
+            <div class="community-grid">
+                <div class="community-card">
+                    <div class="community-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Support Forums</h3>
+                    <p>Join moderated discussion forums where you can share your experiences and support others on their mental health journey.</p>
+                    <div class="community-stats">
+                        <span><i class="fas fa-user-friends"></i> 2,500+ Members</span>
+                        <span><i class="fas fa-comments"></i> 15,000+ Posts</span>
+                    </div>
+                </div>
+                <div class="community-card">
+                    <div class="community-icon">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <h3>Success Stories</h3>
+                    <p>Read inspiring stories of recovery and hope from people who have overcome mental health challenges in Rwanda.</p>
+                    <div class="community-stats">
+                        <span><i class="fas fa-star"></i> 500+ Stories</span>
+                        <span><i class="fas fa-heart"></i> 10,000+ Likes</span>
+                    </div>
+                </div>
+                <div class="community-card">
+                    <div class="community-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h3>Support Groups</h3>
+                    <p>Participate in virtual support groups led by trained facilitators, available in multiple languages.</p>
+                    <div class="community-stats">
+                        <span><i class="fas fa-clock"></i> Weekly Meetings</span>
+                        <span><i class="fas fa-globe"></i> 4 Languages</span>
+                    </div>
+                </div>
+            </div>
+            <div class="community-cta">
+                <a href="http://localhost:8000/login" class="btn-primary large">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Join Community
+                </a>
+                <p class="community-note">
+                    <i class="fas fa-shield-alt"></i>
+                    All community interactions are moderated and confidential
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Resources Section -->
+    <section id="resources" class="resources">
+        <div class="container">
+            <div class="section-header">
+                <h2>Mental Health Resources</h2>
+                <p>Access comprehensive mental health information and tools tailored for Rwanda</p>
+            </div>
+            <div class="resources-grid">
+                <div class="resource-card">
+                    <div class="resource-icon">
+                        <i class="fas fa-book-open"></i>
+                    </div>
+                    <h3>Educational Content</h3>
+                    <p>Learn about mental health through articles, videos, and infographics in Kinyarwanda, French, and English.</p>
+                    <a href="#" class="resource-link">Explore Resources <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3>Self-Help Tools</h3>
+                    <p>Access guided meditations, breathing exercises, and coping strategies designed for Rwandan culture.</p>
+                    <a href="#" class="resource-link">View Tools <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-icon">
+                        <i class="fas fa-user-md"></i>
+                    </div>
+                    <h3>Professional Directory</h3>
+                    <p>Find licensed mental health professionals, counselors, and therapists across Rwanda.</p>
+                    <a href="#" class="resource-link">Find Professionals <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-icon">
+                        <i class="fas fa-map-marked-alt"></i>
+                    </div>
+                    <h3>Emergency Services</h3>
+                    <p>Locate emergency mental health services, crisis centers, and hospitals in your area.</p>
+                    <a href="#" class="resource-link">View Services <i class="fas fa-arrow-right"></i></a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to Begin Your Mental Health Journey?</h2>
+                <p>Join thousands of Rwandans who have found support through AIMHSA</p>
+                <div class="cta-actions">
+                    <a href="http://localhost:8000/login" class="btn-primary large">
+                        <i class="fas fa-rocket"></i>
+                        Start Your Journey Today
+                    </a>
+                    <a href="http://localhost:8000/register" class="btn-secondary large">
+                        <i class="fas fa-user-plus"></i>
+                        Create Free Account
+                    </a>
+                </div>
+                <div class="cta-note">
+                    <i class="fas fa-lock"></i>
+                    <span>100% Free • No Credit Card Required • Instant Access</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="footer-logo">
+                        <i class="fas fa-heart"></i>
+                        <span>AIMHSA</span>
+                    </div>
+                    <p>AI-powered mental health support for Rwanda</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="http://localhost:8000/login">Sign In</a></li>
+                        <li><a href="http://localhost:8000/register">Register</a></li>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#about">About</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="#contact">Contact Us</a></li>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">Help Center</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Emergency</h4>
+                    <div class="emergency-info">
+                        <p><strong>Mental Health Hotline:</strong> 105</p>
+                        <p><strong>CARAES Ndera:</strong> +250 788 305 703</p>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 AIMHSA. All rights reserved. | Designed for Rwanda's mental health needs.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="landing.js?v=2"></script>
+    <script>
+        // Debug script to check what's happening
+        console.log('Landing page loaded successfully!');
+        console.log('Current URL:', window.location.href);
+        console.log('No redirects should happen from this page');
+        
+        // Check if there are any other scripts that might be causing redirects
+        setTimeout(() => {
+            console.log('After 1 second, URL is still:', window.location.href);
+        }, 1000);
+    </script>
+</body>
+</html>
+
+
+

@@ -3,6 +3,21 @@
   
   // Check authentication
   const account = localStorage.getItem("aimhsa_account");
+  const professionalData = localStorage.getItem("aimhsa_professional");
+  const adminData = localStorage.getItem("aimhsa_admin");
+  
+  if (professionalData) {
+      alert('You are logged in as a professional. Please logout and login as a regular user to use the chat.');
+      window.location.href = '/professional_dashboard.html';
+      return;
+  }
+  
+  if (adminData) {
+      alert('You are logged in as an admin. Please logout and login as a regular user to use the chat.');
+      window.location.href = '/admin_dashboard.html';
+      return;
+  }
+  
   if (!account) {
       window.location.href = '/login';
       return;
@@ -79,9 +94,11 @@
 
   // Logout handler
   logoutBtn.addEventListener("click", () => {
-      localStorage.removeItem("aimhsa_account");
-      localStorage.removeItem("aimhsa_conv");
-      window.location.href = '/login';
+    localStorage.removeItem("aimhsa_account");
+    localStorage.removeItem("aimhsa_conv");
+    localStorage.removeItem("aimhsa_professional");
+    localStorage.removeItem("aimhsa_admin");
+    window.location.href = '/login';
   });
   
   // Modern message display
@@ -226,6 +243,23 @@
       });
       removeTypingIndicator();
       appendMessage("assistant", resp.answer || "(no answer)");
+      
+      // Display language detection info
+      if (resp.detected_language && resp.language_name) {
+        displayLanguageInfo(resp.detected_language, resp.language_name);
+      }
+      
+      // Risk assessment is handled in backend only (no display)
+      // But show booking confirmation to user
+      if (resp.emergency_booking) {
+        displayEmergencyBooking(resp.emergency_booking);
+      }
+      
+      // Handle booking question from backend
+      if (resp.ask_booking) {
+        displayBookingQuestion(resp.ask_booking);
+      }
+      
       if (resp.id && resp.id !== convId) {
         convId = resp.id;
         localStorage.setItem("aimhsa_conv", convId);
@@ -750,6 +784,181 @@
     localStorage.setItem("aimhsa_conv", convId);
     await loadHistory();
     await updateHistoryList();
+  }
+
+  // Risk assessment is handled in backend only (no display)
+  // But show booking confirmation to user
+  function displayBookingQuestion(bookingQuestion) {
+    // Create booking question card
+    const questionCard = document.createElement('div');
+    questionCard.className = 'booking-question-card';
+    questionCard.style.cssText = `
+      margin: 12px 0;
+      padding: 20px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+      border: 2px solid #2563eb;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    `;
+    
+    questionCard.innerHTML = `
+      <div style="display: flex; align-items: center; margin-bottom: 12px;">
+        <div style="font-size: 24px; margin-right: 12px;">💬</div>
+        <h3 style="margin: 0; font-size: 18px; font-weight: 700;">Professional Support Available</h3>
+      </div>
+      <p style="margin: 0 0 16px 0; font-size: 16px; opacity: 0.9;">
+        ${bookingQuestion.message}
+      </p>
+      <div style="display: flex; gap: 12px;">
+        <button id="booking-yes" style="
+          padding: 12px 24px;
+          border: none;
+          border-radius: 6px;
+          background: white;
+          color: #3b82f6;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">${bookingQuestion.options[0]}</button>
+        <button id="booking-no" style="
+          padding: 12px 24px;
+          border: 2px solid white;
+          border-radius: 6px;
+          background: transparent;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">${bookingQuestion.options[1]}</button>
+      </div>
+    `;
+    
+    // Insert after the last message
+    const lastMessage = messagesEl.lastElementChild;
+    if (lastMessage) {
+      lastMessage.parentNode.insertBefore(questionCard, lastMessage.nextSibling);
+    }
+    
+    // Add event listeners
+    document.getElementById('booking-yes').addEventListener('click', () => {
+      handleBookingResponse('yes');
+      questionCard.remove();
+    });
+    
+    document.getElementById('booking-no').addEventListener('click', () => {
+      handleBookingResponse('no');
+      questionCard.remove();
+    });
+    
+    // Scroll to show the question
+    questionCard.scrollIntoView({ behavior: 'smooth' });
+  }
+  
+  async function handleBookingResponse(response) {
+    try {
+      const res = await fetch(API_ROOT + '/booking_response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: convId,
+          response: response,
+          account: localStorage.getItem('aimhsa_account')
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (response === 'yes' && data.booking) {
+        // Show booking confirmation
+        displayEmergencyBooking(data.booking);
+      } else {
+        // Show acknowledgment message
+        appendMessage("assistant", data.message || "No problem! I'm here whenever you need support.");
+      }
+    } catch (error) {
+      console.error('Booking response error:', error);
+      appendMessage("assistant", "Sorry, there was an error processing your response. Please try again.");
+    }
+  }
+  
+  function displayLanguageInfo(language, languageName) {
+    // Create language indicator
+    const languageIndicator = document.createElement('div');
+    languageIndicator.className = 'language-indicator';
+    languageIndicator.style.cssText = `
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      font-size: 12px;
+      color: #3b82f6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    `;
+    
+    languageIndicator.innerHTML = `
+      <span>🌐</span>
+      <span>Detected language: <strong>${languageName}</strong></span>
+    `;
+    
+    // Insert after the last message
+    const lastMessage = messagesEl.lastElementChild;
+    if (lastMessage) {
+      lastMessage.parentNode.insertBefore(languageIndicator, lastMessage.nextSibling);
+    }
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (languageIndicator.parentNode) {
+        languageIndicator.remove();
+      }
+    }, 5000);
+  }
+  
+  function displayEmergencyBooking(booking) {
+    const scheduledTime = new Date(booking.scheduled_time * 1000).toLocaleString();
+    
+    // Create emergency booking notification
+    const bookingCard = document.createElement('div');
+    bookingCard.className = 'emergency-booking-card';
+    bookingCard.style.cssText = `
+      margin: 12px 0;
+      padding: 20px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: white;
+      border: 2px solid #ef4444;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    `;
+    
+    bookingCard.innerHTML = `
+      <div style="display: flex; align-items: center; margin-bottom: 12px;">
+        <div style="font-size: 24px; margin-right: 12px;">🚨</div>
+        <h3 style="margin: 0; font-size: 18px; font-weight: 700;">Emergency Session Scheduled</h3>
+      </div>
+      <div style="background: rgba(255, 255, 255, 0.1); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Professional:</strong> ${booking.professional_name}</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Specialization:</strong> ${booking.specialization}</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Scheduled:</strong> ${scheduledTime}</p>
+        <p style="margin: 0; font-size: 14px;"><strong>Session Type:</strong> ${booking.session_type}</p>
+      </div>
+      <p style="margin: 0; font-size: 14px; opacity: 0.9;">
+        A mental health professional has been automatically assigned to provide immediate support. 
+        They will contact you shortly to confirm the session details.
+      </p>
+    `;
+    
+    // Insert after the last message
+    const lastMessage = messagesEl.lastElementChild;
+    if (lastMessage) {
+      lastMessage.parentNode.insertBefore(bookingCard, lastMessage.nextSibling);
+    }
+    
+    // Scroll to show the notification
+    bookingCard.scrollIntoView({ behavior: 'smooth' });
   }
 
   // initial load: start session (account-bound when available) and refresh history list
