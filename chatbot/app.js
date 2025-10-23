@@ -42,6 +42,15 @@
   let typingEl = null;
   let currentPreview = null;
   const archivedPwById = new Map();
+  // Model selection: via URL (?model=xyz) or localStorage (aimhsa_model)
+  const urlParams = new URLSearchParams(window.location.search || "");
+  const urlModel = (urlParams.get('model') || '').trim();
+  if (urlModel) {
+    try { localStorage.setItem('aimhsa_model', urlModel); } catch (_) {}
+  }
+  function getSelectedModel() {
+    try { return (localStorage.getItem('aimhsa_model') || '').trim() || null; } catch (_) { return null; }
+  }
   
   // Set username
   usernameEl.textContent = account === 'null' ? 'Guest' : account;
@@ -236,6 +245,8 @@
       // include account so server can bind new convs to the logged-in user
       const payload = { id: convId, query, history: [] };
       if (account) payload.account = account;
+      const model = getSelectedModel();
+      if (model) payload.model = model;
       const resp = await api("/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -244,10 +255,7 @@
       removeTypingIndicator();
       appendMessage("assistant", resp.answer || "(no answer)");
       
-      // Display language detection info
-      if (resp.detected_language && resp.language_name) {
-        displayLanguageInfo(resp.detected_language, resp.language_name);
-      }
+      // Silent language detection: backend already replies in user's language
       
       // Risk assessment is handled in backend only (no display)
       // But show booking confirmation to user
@@ -382,6 +390,8 @@
     fd.append("file", file, file.name);
     if (convId) fd.append("id", convId);
     if (account) fd.append("account", account);
+    const model = getSelectedModel();
+    if (model) fd.append("model", model);
     xhr.send(fd);
   }
 
@@ -882,41 +892,7 @@
     }
   }
   
-  function displayLanguageInfo(language, languageName) {
-    // Create language indicator
-    const languageIndicator = document.createElement('div');
-    languageIndicator.className = 'language-indicator';
-    languageIndicator.style.cssText = `
-      margin: 8px 0;
-      padding: 8px 12px;
-      border-radius: 6px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      font-size: 12px;
-      color: #3b82f6;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    `;
-    
-    languageIndicator.innerHTML = `
-      <span>🌐</span>
-      <span>Detected language: <strong>${languageName}</strong></span>
-    `;
-    
-    // Insert after the last message
-    const lastMessage = messagesEl.lastElementChild;
-    if (lastMessage) {
-      lastMessage.parentNode.insertBefore(languageIndicator, lastMessage.nextSibling);
-    }
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (languageIndicator.parentNode) {
-        languageIndicator.remove();
-      }
-    }, 5000);
-  }
+  // Removed language indicator UI for a cleaner experience
   
   function displayEmergencyBooking(booking) {
     const scheduledTime = new Date(booking.scheduled_time * 1000).toLocaleString();

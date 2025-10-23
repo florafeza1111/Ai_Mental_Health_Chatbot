@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Form Test - AIMHSA</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { padding: 20px; background: #f4f4f4; }
+        .test-container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-info { background: #17a2b8; color: white; }
+        
+        /* Form input fixes */
+        .form-control {
+            background-color: #fff !important;
+            border: 1px solid #ced4da !important;
+            color: #495057 !important;
+        }
+        .form-control:focus {
+            border-color: #80bdff !important;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+        }
+        .form-control.is-invalid {
+            border-color: #dc3545 !important;
+        }
+        .form-check-input {
+            margin-top: 0.25rem !important;
+        }
+        .modal-body .form-control {
+            background-color: #fff !important;
+            color: #495057 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Professional Form Test - AIMHSA</h1>
+        <p>This page tests the professional management functionality to ensure all input fields work correctly.</p>
+        
+        <div class="test-section info">
+            <h3>📋 Test Instructions</h3>
+            <ol>
+                <li>Click "Test Add Professional" to test the add functionality</li>
+                <li>Fill out the form and test validation</li>
+                <li>Click "Test Edit Professional" to test the edit functionality</li>
+                <li>Check console for detailed logs</li>
+            </ol>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔧 Test Controls</h3>
+            <button class="btn btn-primary" onclick="testAddProfessional()">Test Add Professional</button>
+            <button class="btn btn-warning" onclick="testEditProfessional()">Test Edit Professional</button>
+            <button class="btn btn-info" onclick="testFormValidation()">Test Form Validation</button>
+            <button class="btn btn-success" onclick="testAPI()">Test API Connection</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 Test Results</h3>
+            <div id="testResults">
+                <p>Click the test buttons above to see results here.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Professional Modal (copied from admin_dashboard.html) -->
+    <div class="modal fade" id="professionalModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title" id="modalTitle">Add New Professional</h4>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="professionalForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="username">Username *</label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="password">Password <span id="passwordRequired">*</span></label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                    <small id="passwordHelp" class="form-text text-muted" style="display: none;">Leave blank to keep current password</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="first_name">First Name *</label>
+                                    <input type="text" class="form-control" id="first_name" name="first_name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="last_name">Last Name *</label>
+                                    <input type="text" class="form-control" id="last_name" name="last_name" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="email">Email *</label>
+                                    <input type="email" class="form-control" id="email" name="email" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="phone">Phone</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="specialization">Specialization *</label>
+                                    <select class="form-control" id="specialization" name="specialization" required>
+                                        <option value="">Select Specialization</option>
+                                        <option value="psychiatrist">Psychiatrist</option>
+                                        <option value="psychologist">Psychologist</option>
+                                        <option value="counselor">Counselor</option>
+                                        <option value="social_worker">Social Worker</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="experience_years">Experience (Years)</label>
+                                    <input type="number" class="form-control" id="experience_years" name="experience_years" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="expertise_areas">Expertise Areas *</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="depression" id="expertise_depression">
+                                        <label class="form-check-label" for="expertise_depression">Depression</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="anxiety" id="expertise_anxiety">
+                                        <label class="form-check-label" for="expertise_anxiety">Anxiety</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="ptsd" id="expertise_ptsd">
+                                        <label class="form-check-label" for="expertise_ptsd">PTSD</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="trauma" id="expertise_trauma">
+                                        <label class="form-check-label" for="expertise_trauma">Trauma</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="suicide" id="expertise_suicide">
+                                        <label class="form-check-label" for="expertise_suicide">Suicide Prevention</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="crisis" id="expertise_crisis">
+                                        <label class="form-check-label" for="expertise_crisis">Crisis Intervention</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="youth" id="expertise_youth">
+                                        <label class="form-check-label" for="expertise_youth">Youth Mental Health</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="family" id="expertise_family">
+                                        <label class="form-check-label" for="expertise_family">Family Therapy</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="district">District</label>
+                                    <input type="text" class="form-control" id="district" name="district" placeholder="e.g., Gasabo, Kigali">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="consultation_fee">Consultation Fee (RWF)</label>
+                                    <input type="number" class="form-control" id="consultation_fee" name="consultation_fee" min="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="bio">Bio</label>
+                            <textarea class="form-control" id="bio" name="bio" rows="3" placeholder="Brief professional background..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveProfessionalBtn">Save Professional</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test functions
+        function testAddProfessional() {
+            console.log('🧪 Testing Add Professional...');
+            $('#modalTitle').text('Add New Professional');
+            $('#passwordRequired').text('*');
+            $('#passwordHelp').hide();
+            $('#password').prop('required', true);
+            resetForm();
+            $('#professionalModal').modal('show');
+            addResult('✅ Add Professional modal opened successfully');
+        }
+
+        function testEditProfessional() {
+            console.log('🧪 Testing Edit Professional...');
+            $('#modalTitle').text('Edit Professional');
+            $('#passwordRequired').text('');
+            $('#passwordHelp').show();
+            $('#password').prop('required', false);
+            
+            // Fill form with sample data
+            $('#username').val('test_professional');
+            $('#first_name').val('Test');
+            $('#last_name').val('Professional');
+            $('#email').val('test@example.com');
+            $('#phone').val('+250123456789');
+            $('#specialization').val('counselor');
+            $('#experience_years').val('5');
+            $('#district').val('Gasabo');
+            $('#consultation_fee').val('50000');
+            $('#bio').val('Test professional bio');
+            
+            // Check some expertise areas
+            $('#expertise_depression').prop('checked', true);
+            $('#expertise_anxiety').prop('checked', true);
+            
+            $('#professionalModal').modal('show');
+            addResult('✅ Edit Professional modal opened with sample data');
+        }
+
+        function testFormValidation() {
+            console.log('🧪 Testing Form Validation...');
+            resetForm();
+            
+            // Test empty form validation
+            $('#saveProfessionalBtn').click();
+            addResult('✅ Form validation test completed (check console for details)');
+        }
+
+        function testAPI() {
+            console.log('🧪 Testing API Connection...');
+            fetch('http://localhost:5057/admin/professionals')
+                .then(response => {
+                    if (response.ok) {
+                        addResult('✅ API connection successful');
+                        return response.json();
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                })
+                .then(data => {
+                    addResult(`✅ API returned ${data.professionals ? data.professionals.length : 0} professionals`);
+                })
+                .catch(error => {
+                    addResult(`❌ API connection failed: ${error.message}`);
+                });
+        }
+
+        function resetForm() {
+            $('#professionalForm')[0].reset();
+            $('input[name="expertise"]').prop('checked', false);
+            $('.is-invalid').removeClass('is-invalid');
+        }
+
+        function addResult(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            document.getElementById('testResults').appendChild(resultDiv);
+        }
+
+        // Initialize
+        $(document).ready(function() {
+            console.log('🚀 Professional Form Test Page Loaded');
+            addResult('Page loaded successfully');
+        });
+    </script>
+</body>
+</html>

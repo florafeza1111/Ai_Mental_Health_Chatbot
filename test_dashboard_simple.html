@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+        .test-container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .loading { color: #007bff; }
+        .success-text { color: #28a745; }
+        .error-text { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔧 AIMHSA Admin Dashboard Test</h1>
+        <p>This page tests the admin dashboard functionality and API connectivity.</p>
+        
+        <div class="test-section">
+            <h3>1. Dashboard Access Test</h3>
+            <button class="btn-primary" onclick="testDashboardAccess()">Test Dashboard Access</button>
+            <div id="dashboard-result" class="status"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. API Connectivity Test</h3>
+            <button class="btn-success" onclick="testAPIConnectivity()">Test API Endpoints</button>
+            <div id="api-result" class="status"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. Database Schema Test</h3>
+            <button class="btn-warning" onclick="testDatabaseSchema()">Test Database Schema</button>
+            <div id="database-result" class="status"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. Quick Actions</h3>
+            <button class="btn-primary" onclick="openDashboard()">Open Admin Dashboard</button>
+            <button class="btn-success" onclick="openTestPage()">Open Test Page</button>
+            <button class="btn-warning" onclick="checkConsole()">Check Console</button>
+        </div>
+        
+        <div class="test-section info">
+            <h3>📋 Test Results Summary</h3>
+            <div id="summary-result">
+                <p>Click the test buttons above to run diagnostics.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            dashboard: false,
+            api: false,
+            database: false
+        };
+        
+        function testDashboardAccess() {
+            const result = document.getElementById('dashboard-result');
+            result.innerHTML = '<div class="loading">🔄 Testing dashboard access...</div>';
+            
+            try {
+                // Test if we can access the dashboard
+                fetch('admin_dashboard.html')
+                    .then(response => {
+                        if (response.ok) {
+                            result.innerHTML = '<div class="success">✅ Dashboard HTML accessible</div>';
+                            testResults.dashboard = true;
+                            updateSummary();
+                        } else {
+                            result.innerHTML = '<div class="error">❌ Dashboard HTML not accessible (Status: ' + response.status + ')</div>';
+                        }
+                    })
+                    .catch(error => {
+                        result.innerHTML = '<div class="error">❌ Error accessing dashboard: ' + error.message + '</div>';
+                    });
+            } catch (error) {
+                result.innerHTML = '<div class="error">❌ Error: ' + error.message + '</div>';
+            }
+        }
+        
+        function testAPIConnectivity() {
+            const result = document.getElementById('api-result');
+            result.innerHTML = '<div class="loading">🔄 Testing API connectivity...</div>';
+            
+            const endpoints = [
+                { name: 'Admin Bookings', url: 'http://localhost:5057/admin/bookings' },
+                { name: 'Admin Professionals', url: 'http://localhost:5057/admin/professionals' },
+                { name: 'Admin Risk Assessments', url: 'http://localhost:5057/admin/risk-assessments' },
+                { name: 'Monitor Risk Stats', url: 'http://localhost:5057/monitor/risk-stats' }
+            ];
+            
+            let results = [];
+            let completed = 0;
+            
+            endpoints.forEach(endpoint => {
+                fetch(endpoint.url)
+                    .then(response => {
+                        const status = response.ok ? '✅ OK' : '❌ Error (' + response.status + ')';
+                        results.push(`${endpoint.name}: ${status}`);
+                        completed++;
+                        if (completed === endpoints.length) {
+                            result.innerHTML = '<div>' + results.join('<br>') + '</div>';
+                            testResults.api = results.some(r => r.includes('✅'));
+                            updateSummary();
+                        }
+                    })
+                    .catch(error => {
+                        results.push(`${endpoint.name}: ❌ ${error.message}`);
+                        completed++;
+                        if (completed === endpoints.length) {
+                            result.innerHTML = '<div>' + results.join('<br>') + '</div>';
+                            testResults.api = false;
+                            updateSummary();
+                        }
+                    });
+            });
+        }
+        
+        function testDatabaseSchema() {
+            const result = document.getElementById('database-result');
+            result.innerHTML = '<div class="loading">🔄 Testing database schema...</div>';
+            
+            // Test if we can get data from the database through API
+            fetch('http://localhost:5057/admin/professionals')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.professionals && Array.isArray(data.professionals)) {
+                        result.innerHTML = `<div class="success">✅ Database schema working<br>Found ${data.professionals.length} professionals</div>`;
+                        testResults.database = true;
+                    } else {
+                        result.innerHTML = '<div class="warning">⚠️ Database accessible but no data found</div>';
+                        testResults.database = true;
+                    }
+                    updateSummary();
+                })
+                .catch(error => {
+                    result.innerHTML = '<div class="error">❌ Database error: ' + error.message + '</div>';
+                    testResults.database = false;
+                    updateSummary();
+                });
+        }
+        
+        function updateSummary() {
+            const summary = document.getElementById('summary-result');
+            const passed = Object.values(testResults).filter(Boolean).length;
+            const total = Object.keys(testResults).length;
+            
+            let summaryHtml = `<h4>Test Results: ${passed}/${total} passed</h4>`;
+            summaryHtml += `<ul>`;
+            summaryHtml += `<li>Dashboard Access: ${testResults.dashboard ? '✅ Pass' : '❌ Fail'}</li>`;
+            summaryHtml += `<li>API Connectivity: ${testResults.api ? '✅ Pass' : '❌ Fail'}</li>`;
+            summaryHtml += `<li>Database Schema: ${testResults.database ? '✅ Pass' : '❌ Fail'}</li>`;
+            summaryHtml += `</ul>`;
+            
+            if (passed === total) {
+                summaryHtml += '<div class="success">🎉 All tests passed! Dashboard should work properly.</div>';
+            } else if (passed > 0) {
+                summaryHtml += '<div class="warning">⚠️ Some tests failed. Dashboard may have limited functionality.</div>';
+            } else {
+                summaryHtml += '<div class="error">❌ All tests failed. Please check your setup.</div>';
+            }
+            
+            summary.innerHTML = summaryHtml;
+        }
+        
+        function openDashboard() {
+            window.open('admin_dashboard.html', '_blank');
+        }
+        
+        function openTestPage() {
+            window.open('test_admin_dashboard.html', '_blank');
+        }
+        
+        function checkConsole() {
+            alert('Please open the browser console (F12) to see detailed logs and any error messages.');
+        }
+        
+        // Auto-run basic tests on page load
+        window.onload = function() {
+            console.log('🚀 Dashboard Test Page Loaded');
+            console.log('📋 Available tests:');
+            console.log('  - testDashboardAccess()');
+            console.log('  - testAPIConnectivity()');
+            console.log('  - testDatabaseSchema()');
+        };
+    </script>
+</body>
+</html>

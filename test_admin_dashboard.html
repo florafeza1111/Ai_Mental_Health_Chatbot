@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Admin Dashboard Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Test Dashboard Access</h3>
+        <button onclick="testDashboardAccess()">Test Dashboard Access</button>
+        <div id="dashboard-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Test API Endpoints</h3>
+        <button onclick="testAPIEndpoints()">Test API Endpoints</button>
+        <div id="api-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Test JavaScript Libraries</h3>
+        <button onclick="testLibraries()">Test Libraries</button>
+        <div id="libraries-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>4. Quick Actions</h3>
+        <button onclick="window.open('admin_dashboard.html', '_blank')">Open Dashboard</button>
+        <button onclick="window.open('admin_dashboard.html#professionals', '_blank')">Open Professionals</button>
+        <button onclick="window.open('admin_dashboard.html#bookings', '_blank')">Open Bookings</button>
+    </div>
+
+    <script>
+        function testDashboardAccess() {
+            const result = document.getElementById('dashboard-result');
+            try {
+                // Test if we can access the dashboard
+                fetch('admin_dashboard.html')
+                    .then(response => {
+                        if (response.ok) {
+                            result.innerHTML = '<div class="success">✅ Dashboard HTML accessible</div>';
+                        } else {
+                            result.innerHTML = '<div class="error">❌ Dashboard HTML not accessible</div>';
+                        }
+                    })
+                    .catch(error => {
+                        result.innerHTML = '<div class="error">❌ Error accessing dashboard: ' + error.message + '</div>';
+                    });
+            } catch (error) {
+                result.innerHTML = '<div class="error">❌ Error: ' + error.message + '</div>';
+            }
+        }
+        
+        function testAPIEndpoints() {
+            const result = document.getElementById('api-result');
+            const endpoints = [
+                'http://localhost:5057/admin/bookings',
+                'http://localhost:5057/admin/professionals',
+                'http://localhost:5057/admin/risk-assessments'
+            ];
+            
+            let results = [];
+            let completed = 0;
+            
+            endpoints.forEach(endpoint => {
+                fetch(endpoint)
+                    .then(response => {
+                        results.push(`${endpoint}: ${response.ok ? '✅ OK' : '❌ Error'}`);
+                        completed++;
+                        if (completed === endpoints.length) {
+                            result.innerHTML = '<div>' + results.join('<br>') + '</div>';
+                        }
+                    })
+                    .catch(error => {
+                        results.push(`${endpoint}: ❌ ${error.message}`);
+                        completed++;
+                        if (completed === endpoints.length) {
+                            result.innerHTML = '<div>' + results.join('<br>') + '</div>';
+                        }
+                    });
+            });
+        }
+        
+        function testLibraries() {
+            const result = document.getElementById('libraries-result');
+            const libraries = [
+                { name: 'jQuery', check: () => typeof $ !== 'undefined' },
+                { name: 'Chart.js', check: () => typeof Chart !== 'undefined' },
+                { name: 'SweetAlert2', check: () => typeof Swal !== 'undefined' },
+                { name: 'Bootstrap', check: () => typeof bootstrap !== 'undefined' }
+            ];
+            
+            let results = [];
+            libraries.forEach(lib => {
+                try {
+                    const available = lib.check();
+                    results.push(`${lib.name}: ${available ? '✅ Available' : '❌ Not Available'}`);
+                } catch (error) {
+                    results.push(`${lib.name}: ❌ Error checking`);
+                }
+            });
+            
+            result.innerHTML = '<div>' + results.join('<br>') + '</div>';
+        }
+    </script>
+</body>
+</html>

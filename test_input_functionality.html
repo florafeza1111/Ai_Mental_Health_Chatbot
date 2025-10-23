@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Input Functionality</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-control {
+            background-color: #fff !important;
+            color: #495057 !important;
+            border: 1px solid #ced4da !important;
+        }
+        .form-control:focus {
+            border-color: #7c3aed !important;
+            box-shadow: 0 0 0 0.2rem rgba(124, 58, 237, 0.25) !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h2>Test Input Functionality</h2>
+        <p>This page tests if the input fields are working properly. Try typing in each field below:</p>
+        
+        <form id="testForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_username">Username *</label>
+                        <input type="text" class="form-control" id="test_username" name="username" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_password">Password *</label>
+                        <input type="password" class="form-control" id="test_password" name="password" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_first_name">First Name *</label>
+                        <input type="text" class="form-control" id="test_first_name" name="first_name" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_last_name">Last Name *</label>
+                        <input type="text" class="form-control" id="test_last_name" name="last_name" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_email">Email *</label>
+                        <input type="email" class="form-control" id="test_email" name="email" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_phone">Phone</label>
+                        <input type="tel" class="form-control" id="test_phone" name="phone">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_specialization">Specialization *</label>
+                        <select class="form-control" id="test_specialization" name="specialization" required>
+                            <option value="">Select Specialization</option>
+                            <option value="psychiatrist">Psychiatrist</option>
+                            <option value="psychologist">Psychologist</option>
+                            <option value="counselor">Counselor</option>
+                            <option value="social_worker">Social Worker</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="test_experience">Experience (Years)</label>
+                        <input type="number" class="form-control" id="test_experience" name="experience_years" min="0" value="0">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="test_bio">Bio</label>
+                <textarea class="form-control" id="test_bio" name="bio" rows="3" placeholder="Brief professional background..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Expertise Areas *</label>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="expertise" value="depression" id="test_expertise_depression">
+                            <label class="form-check-label" for="test_expertise_depression">Depression</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="expertise" value="anxiety" id="test_expertise_anxiety">
+                            <label class="form-check-label" for="test_expertise_anxiety">Anxiety</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="expertise" value="ptsd" id="test_expertise_ptsd">
+                            <label class="form-check-label" for="test_expertise_ptsd">PTSD</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="expertise" value="trauma" id="test_expertise_trauma">
+                            <label class="form-check-label" for="test_expertise_trauma">Trauma</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Test Submit</button>
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear Form</button>
+                <button type="button" class="btn btn-info" onclick="debugForm()">Debug Form</button>
+            </div>
+        </form>
+        
+        <div id="debugOutput" style="margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; display: none;">
+            <h5>Debug Output:</h5>
+            <pre id="debugContent"></pre>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Test form functionality
+        document.getElementById('testForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Form submitted successfully! All inputs are working.');
+        });
+        
+        function clearForm() {
+            document.getElementById('testForm').reset();
+            document.getElementById('debugOutput').style.display = 'none';
+        }
+        
+        function debugForm() {
+            const form = document.getElementById('testForm');
+            const inputs = form.querySelectorAll('input, select, textarea');
+            const debugInfo = [];
+            
+            inputs.forEach((input, index) => {
+                debugInfo.push(`Input ${index}: ${input.type || 'select'} - ${input.name} - Value: "${input.value}" - Disabled: ${input.disabled} - ReadOnly: ${input.readOnly}`);
+            });
+            
+            document.getElementById('debugContent').textContent = debugInfo.join('\n');
+            document.getElementById('debugOutput').style.display = 'block';
+        }
+        
+        // Test input functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    console.log(`Input changed: ${this.name} = "${this.value}"`);
+                });
+                
+                input.addEventListener('focus', function() {
+                    console.log(`Input focused: ${this.name}`);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

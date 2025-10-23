@@ -7,6 +7,7 @@ import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import time
 import uuid
+from datetime import datetime
 import tempfile
 import pytesseract
 from werkzeug.utils import secure_filename
@@ -14,8 +15,52 @@ import re
 import math
 from typing import Dict, List, Tuple, Optional
 from translation_service import translation_service
+from sms_service import initialize_sms_service, get_sms_service
+import time as _time
+
+# --- Minimal retry helpers for Ollama calls ---
+def _retry_ollama_call(func, *args, _retries=1, _delay=0.5, **kwargs):
+    last_err = None
+    for attempt in range(_retries + 1):
+        try:
+            # Remove timeout parameter as ollama doesn't support it
+            kwargs.pop('timeout', None)
+            return func(*args, **kwargs)
+        except Exception as e:
+            last_err = e
+            app.logger.warning(f"Ollama call attempt {attempt + 1} failed: {e}")
+            if attempt < _retries:
+                try:
+                    _time.sleep(_delay)
+                except Exception:
+                    pass
+            else:
+                raise last_err
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 load_dotenv()
+
+# --- Helper Functions ---
+def get_time_ago(timestamp):
+    """Convert timestamp to human-readable time ago format"""
+    if not timestamp:
+        return "Unknown"
+    
+    now = time.time()
+    diff = now - timestamp
+    
+    if diff < 60:
+        return f"{int(diff)}s ago"
+    elif diff < 3600:
+        return f"{int(diff/60)}m ago"
+    elif diff < 86400:
+        return f"{int(diff/3600)}h ago"
+    elif diff < 604800:
+        return f"{int(diff/86400)}d ago"
+    else:
+        return f"{int(diff/604800)}w ago"
 
 # --- Constants ---
 DATA_DIR = "data"  # knowledgebase directory containing source files
@@ -23,8 +68,8 @@ STORAGE_DIR = "storage"
 EMBED_FILE = os.path.join(STORAGE_DIR, "embeddings.json")
 CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2:3b")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
-# sentence-level embedder used for query / semantic search (can be same as EMBED_MODEL or a dedicated sentence model)
-SENT_EMBED_MODEL = os.getenv("SENT_EMBED_MODEL", EMBED_MODEL)
+# sentence-level embedder used for query / semantic search (prefer sentence-transformers by default)
+SENT_EMBED_MODEL = os.getenv("SENT_EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
 
 # lazy-loaded SentenceTransformer instance (only used when SENT_EMBED_MODEL points to a sentence-transformers model)
 SENT_MODEL = None
@@ -32,6 +77,109 @@ USE_SENT_TRANSFORMERS = SENT_EMBED_MODEL.startswith("sentence-transformers/")
 
 # --- new DB config ---
 DB_FILE = "storage/conversations.db"
+
+# --- Email Configuration ---
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "noreply@aimhsa.rw")
+
+# --- SMS Configuration ---
+HDEV_SMS_API_ID = os.getenv("HDEV_SMS_API_ID", "HDEV-23fb1b59-aec0-4aef-a351-bfc1c3aa3c52-ID")
+HDEV_SMS_API_KEY = os.getenv("HDEV_SMS_API_KEY", "HDEV-6e36c286-19bb-4b45-838e-8b5cd0240857-KEY")
+
+def send_password_reset_email(to_email, username, reset_code):
+    """
+    Send password reset email with the reset code.
+    """
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        # If no email credentials are configured, just log the code
+        app.logger.info(f"Password reset code for {username} ({to_email}): {reset_code}")
+        raise Exception("Email service not configured")
+    
+    try:
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "AIMHSA - Password Reset Code"
+        msg['From'] = FROM_EMAIL
+        msg['To'] = to_email
+        
+        # Create HTML email content
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c5aa0;">AIMHSA</h1>
+                    <p style="color: #666;">Mental Health Companion for Rwanda</p>
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 30px; border-radius: 8px; margin-bottom: 20px;">
+                    <h2 style="color: #2c5aa0; margin-top: 0;">Password Reset Request</h2>
+                    <p>Hello {username},</p>
+                    <p>You have requested to reset your password for your AIMHSA account. Use the code below to reset your password:</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <div style="background-color: #2c5aa0; color: white; padding: 15px 30px; border-radius: 5px; font-size: 24px; font-weight: bold; letter-spacing: 3px; display: inline-block;">
+                            {reset_code}
+                        </div>
+                    </div>
+                    
+                    <p><strong>Important:</strong></p>
+                    <ul>
+                        <li>This code will expire in 15 minutes</li>
+                        <li>This code can only be used once</li>
+                        <li>If you didn't request this reset, please ignore this email</li>
+                    </ul>
+                </div>
+                
+                <div style="text-align: center; color: #666; font-size: 12px;">
+                    <p>© 2024 AIMHSA - Mental Health Companion for Rwanda</p>
+                    <p>This is an automated message, please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Create plain text version
+        text_content = f"""
+        AIMHSA - Password Reset Code
+        
+        Hello {username},
+        
+        You have requested to reset your password for your AIMHSA account.
+        
+        Your reset code is: {reset_code}
+        
+        Important:
+        - This code will expire in 15 minutes
+        - This code can only be used once
+        - If you didn't request this reset, please ignore this email
+        
+        © 2024 AIMHSA - Mental Health Companion for Rwanda
+        """
+        
+        # Attach parts
+        part1 = MIMEText(text_content, 'plain')
+        part2 = MIMEText(html_content, 'html')
+        
+        msg.attach(part1)
+        msg.attach(part2)
+        
+        # Send email
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        app.logger.info(f"Password reset email sent to {to_email}")
+        
+    except Exception as e:
+        app.logger.error(f"Failed to send password reset email: {e}")
+        raise
 
 def init_storage():
     os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
@@ -67,7 +215,7 @@ def init_storage():
                 ts REAL NOT NULL
             )
         """)
-        # users table: store username + password hash
+        # users table: store user information
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY,
@@ -75,6 +223,38 @@ def init_storage():
                 created_ts REAL NOT NULL
             )
         """)
+        
+        # Check if new columns exist and add them if they don't
+        cursor = conn.execute("PRAGMA table_info(users)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'email' not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        if 'fullname' not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
+        if 'telephone' not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN telephone TEXT")
+        if 'province' not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN province TEXT")
+        if 'district' not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN district TEXT")
+        
+        # Update existing records with default values if they have NULL values
+        conn.execute("""
+            UPDATE users 
+            SET email = 'user@example.com', 
+                fullname = 'User', 
+                telephone = '+250000000000', 
+                province = 'Kigali', 
+                district = 'Gasabo'
+            WHERE email IS NULL OR fullname IS NULL OR telephone IS NULL OR province IS NULL OR district IS NULL
+        """)
+        
+        # Make email unique for new records only
+        try:
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email)")
+        except:
+            pass  # Index might already exist
         # password resets: username + token + expiry
         conn.execute("""
             CREATE TABLE IF NOT EXISTS password_resets (
@@ -227,6 +407,16 @@ def init_storage():
                 created_ts REAL NOT NULL
             )
         """)
+        
+        # Ensure default admin user exists
+        cur = conn.execute("SELECT 1 FROM admin_users WHERE username = 'eliasfeza@gmail.com'")
+        if not cur.fetchone():
+            # Create default admin user
+            default_password_hash = generate_password_hash("EliasFeza@12301")
+            conn.execute("""
+                INSERT INTO admin_users (username, password_hash, email, role, created_ts)
+                VALUES (?, ?, ?, ?, ?)
+            """, ("eliasfeza@gmail.com", default_password_hash, "eliasfeza@gmail.com", "admin", time.time()))
         
         conn.commit()
     finally:
@@ -458,13 +648,29 @@ class RiskDetector:
             Respond in JSON format: {{"risk_score": 0.0-1.0, "indicators": ["indicator1", "indicator2"]}}
             """
             
-            response = ollama.chat(model=CHAT_MODEL, messages=[
+            response = _retry_ollama_call(ollama.chat, model=CHAT_MODEL, messages=[
                 {"role": "system", "content": "You are a mental health risk assessment AI. Analyze conversations for risk indicators and provide structured JSON responses."},
                 {"role": "user", "content": ai_prompt}
             ])
             
-            # Parse AI response
-            ai_result = json.loads(response["message"]["content"])
+            # Parse AI response robustly (extract JSON if wrapper text present)
+            raw = response.get("message", {}).get("content", "")
+            ai_result = {}
+            try:
+                ai_result = json.loads(raw)
+            except Exception:
+                # Attempt to extract JSON substring
+                start = raw.find('{')
+                end = raw.rfind('}')
+                if start != -1 and end != -1 and end > start:
+                    snippet = raw[start:end+1]
+                    try:
+                        ai_result = json.loads(snippet)
+                    except Exception:
+                        ai_result = {}
+                else:
+                    ai_result = {}
+
             return ai_result.get("risk_score", 0.0), ai_result.get("indicators", [])
             
         except Exception as e:
@@ -648,14 +854,41 @@ class ProfessionalMatcher:
 
     def _is_professional_available_now(self, professional: Dict) -> bool:
         """Check if professional is available for immediate booking"""
-        # This would check their current schedule
-        # For now, return True if they have less than max patients today
-        return True  # Simplified for now
+        # Check today's assigned sessions vs capacity (max_patients_per_day)
+        capacity = professional.get('max_patients_per_day') or 10
+        prof_id = professional.get('id')
+        if not prof_id:
+            return True
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            start_of_day = time.time() - (time.time() % 86400)
+            cur = conn.execute(
+                """
+                SELECT COUNT(*) FROM automated_bookings
+                WHERE professional_id = ? AND created_ts >= ? AND booking_status IN ('pending','confirmed')
+                """,
+                (prof_id, start_of_day)
+            )
+            count = cur.fetchone()[0] or 0
+            return count < capacity
+        except Exception:
+            return True
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:8000", "http://127.0.0.1:8000"], 
+# Broaden CORS for development to prevent "Failed to fetch" when loading from different ports
+# In production, restrict origins to your actual domains
+CORS(app, resources={r"/*": {"origins": "*"}},
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization"])
+     allow_headers=["Content-Type", "Authorization", "X-Professional-ID"],
+     supports_credentials=False)
+
+# Initialize SMS service
+initialize_sms_service(HDEV_SMS_API_ID, HDEV_SMS_API_KEY)
 
 # --- Public landing page routes (serve files from chatbot/ without affecting APIs) ---
 _CHATBOT_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chatbot')
@@ -723,6 +956,14 @@ def admin_js_asset():
 def professional_js_asset():
     return send_from_directory(_CHATBOT_STATIC_DIR, 'professional.js')
 
+@app.route('/admin.css')
+def admin_css_asset():
+    return send_from_directory(_CHATBOT_STATIC_DIR, 'admin.css')
+
+@app.route('/professional.css')
+def professional_css_asset():
+    return send_from_directory(_CHATBOT_STATIC_DIR, 'professional.css')
+
 @app.route('/auth.css')
 def auth_css_asset():
     return send_from_directory(_CHATBOT_STATIC_DIR, 'auth.css')
@@ -735,13 +976,59 @@ def style_css_asset():
 def app_js_asset():
     return send_from_directory(_CHATBOT_STATIC_DIR, 'app.js')
 
-SYSTEM_PROMPT = """You are AIMHSA, a supportive mental-health companion for Rwanda.
-- Be warm, brief, and evidence-informed. Respond in the user's language (English, Kinyarwanda, French, or Kiswahili).
-- Do NOT diagnose or prescribe medications. Encourage professional care when appropriate.
-- If the user mentions self-harm or immediate danger, express care and advise contacting local emergency services right away.
-- Ground answers in the provided CONTEXT. If context is insufficient, say what is known and unknown, and offer general coping strategies.
-- Keep responses brief except when details are required.
-- Always respond in the same language the user wrote in.
+SYSTEM_PROMPT = """You are AIMHSA (AI Mental Health Support Assistant), a professional multilingual mental health chatbot specifically designed for Rwanda. You provide culturally-sensitive, evidence-based mental health support in four languages: English, French, Kiswahili, and Kinyarwanda.
+
+## Professional Identity & Mission
+- You are a professional mental health support assistant for Rwanda
+- Your mission is to provide immediate, culturally-appropriate mental health support
+- You understand Rwanda's unique context, including post-genocide mental health needs and cultural considerations
+- You maintain the highest standards of professional mental health support
+
+## Language Capabilities & Rules
+- AUTOMATICALLY detect the user's language and respond EXCLUSIVELY in that same language
+- NEVER mix multiple languages in one response
+- If user writes in English → respond in English
+- If user writes in French → respond in French  
+- If user writes in Kiswahili → respond in Kiswahili
+- If user writes in Kinyarwanda → respond in pure Kinyarwanda
+- Maintain professional, empathetic tone in all languages
+
+## Professional Boundaries
+- Do NOT diagnose mental health conditions or prescribe medications
+- Do NOT provide medical advice beyond general wellness guidance
+- Always encourage professional care when appropriate
+- Refer to qualified mental health professionals for clinical concerns
+- Maintain professional confidentiality and ethical standards
+
+## Emergency Response Protocol
+- If user mentions self-harm, suicidal ideation, or immediate danger:
+  * Express genuine care and concern in their language
+  * Provide immediate emergency contacts: Mental Health Hotline 105, CARAES Ndera Hospital +250 788 305 703
+  * For immediate danger, advise calling 112 (Rwanda National Police)
+  * Stay with the user and provide emotional support in their language
+
+## Professional Response Guidelines
+- Be warm, empathetic, and culturally appropriate
+- Use evidence-based information and practical coping strategies
+- Maintain consistent terminology across all languages
+- Include relevant Rwanda-specific resources and contacts
+- Keep responses professional, concise, and comprehensive
+- Ensure cultural sensitivity in all interactions
+
+## Available Resources (Use When Relevant)
+- Emergency Contacts: Mental Health Hotline 105, Youth Helpline 116
+- Key Facilities: CARAES Ndera Hospital, HDI Rwanda Counseling, ARCT Ruhuka Trauma Counseling
+- Coverage: Mental health services available in all districts across Rwanda
+- Policy: Rwanda's National Mental Health Policy (2022) provides free counseling in public hospitals
+
+## Cultural Sensitivity
+- Acknowledge Rwanda's history and its impact on mental health
+- Respect cultural practices and beliefs
+- Use appropriate language and terminology for each culture
+- Be sensitive to trauma-related concerns, especially post-genocide experiences
+- Maintain professional respect for cultural diversity
+
+Remember: You are a professional mental health support system designed to provide immediate, culturally-appropriate assistance while connecting users to professional care when needed. Always respond in the user's detected language with professional empathy and cultural sensitivity.
 """
 
 def rebuild_vector_store():
@@ -808,7 +1095,7 @@ def rebuild_vector_store():
             # Note: ollama.embeddings is for single prompt, for batch we need to call individually
             batch_embeddings = []
             for text in batch:
-                resp = ollama.embeddings(model=EMBED_MODEL, prompt=text)
+                resp = _retry_ollama_call(ollama.embeddings, model=EMBED_MODEL, prompt=text)
                 batch_embeddings.append(resp["embedding"])
             all_embeddings.extend(batch_embeddings)
             
@@ -940,7 +1227,7 @@ def retrieve(query: str, k: int = 4, lambda_param: float = 0.6):
             # fallback to ollama if local model not available
             try:
                 app.logger.info(f"Falling back to ollama.embeddings with model: {EMBED_MODEL}")
-                q_emb_resp = ollama.embeddings(model=EMBED_MODEL, prompt=query)
+                q_emb_resp = _retry_ollama_call(ollama.embeddings, model=EMBED_MODEL, prompt=query)
                 q_emb = np.array([q_emb_resp["embedding"]], dtype=np.float32)
                 app.logger.info("Successfully embedded query with ollama fallback")
             except Exception as e2:
@@ -950,13 +1237,40 @@ def retrieve(query: str, k: int = 4, lambda_param: float = 0.6):
         app.logger.info(f"Using ollama embeddings API with model: {SENT_EMBED_MODEL}")
         # default: use ollama embeddings API
         try:
-            q_emb_resp = ollama.embeddings(model=SENT_EMBED_MODEL, prompt=query)
+            q_emb_resp = _retry_ollama_call(ollama.embeddings, model=SENT_EMBED_MODEL, prompt=query)
             q_emb = np.array([q_emb_resp["embedding"]], dtype=np.float32)
             app.logger.info(f"Successfully embedded query with ollama, shape: {q_emb.shape}")
         except Exception as e:
             app.logger.error(f"Failed to embed query with {SENT_EMBED_MODEL}: {e}")
             # Return empty results if embedding fails
             return []
+
+    # Harmonize embedding dimensions with stored chunk embeddings to avoid runtime errors
+    try:
+        if chunk_embeddings.size > 0:
+            doc_dim = int(chunk_embeddings.shape[1])
+            q_dim = int(q_emb.shape[1]) if q_emb.ndim == 2 else int(q_emb.reshape(1, -1).shape[1])
+            if q_dim != doc_dim:
+                app.logger.warning(
+                    f"Query emb dim {q_dim} != chunk dim {doc_dim}. Using nomic-embed-text to match."
+                )
+                # Always use nomic-embed-text to match the stored chunks
+                try:
+                    re_q = ollama.embeddings(model="nomic-embed-text", prompt=query)
+                    q_emb2 = np.array([re_q["embedding"]], dtype=np.float32)
+                    q_dim2 = int(q_emb2.shape[1])
+                    if q_dim2 == doc_dim:
+                        q_emb = q_emb2
+                        app.logger.info("Re-embedded query with nomic-embed-text to match chunk dimensions")
+                    else:
+                        app.logger.error(f"nomic-embed-text still produces wrong dimension: {q_dim2} != {doc_dim}")
+                        return []
+                except Exception as re_err:
+                    app.logger.error(f"Re-embedding with nomic-embed-text failed: {re_err}")
+                    return []
+    except Exception as dim_err:
+        app.logger.error(f"Dimension harmonization error: {dim_err}")
+        return []
 
     # ensure chunk_embeddings shape OK
     if chunk_embeddings.size == 0:
@@ -975,7 +1289,7 @@ def build_context(snippets):
 
 # --- THERAPY BOOKING SYSTEM HELPER FUNCTIONS ---
 def create_automated_booking(conv_id: str, risk_assessment: Dict, user_account: str = None) -> Optional[Dict]:
-    """Create automated booking for high-risk cases"""
+    """Create automated booking for high-risk cases with SMS notifications"""
     
     # Find best professional
     matcher = ProfessionalMatcher()
@@ -984,6 +1298,32 @@ def create_automated_booking(conv_id: str, risk_assessment: Dict, user_account: 
     if not professional:
         app.logger.warning(f"No available professional found for high-risk case: {conv_id}")
         return None
+    
+    # Get user data for SMS notifications
+    user_data = None
+    if user_account:
+        user_data = get_user_data(user_account)
+    
+    # Verify SMS capability before creating booking
+    sms_service = get_sms_service()
+    if not sms_service:
+        app.logger.error("SMS service not initialized - cannot create booking with SMS notifications")
+        return None
+    
+    # Check if we can send SMS to both parties
+    can_send_user_sms = user_data and user_data.get('telephone')
+    can_send_prof_sms = professional.get('phone')
+    
+    app.logger.info(f"📱 SMS Capability Check:")
+    app.logger.info(f"   User SMS: {'✅ Ready' if can_send_user_sms else '❌ No phone number'}")
+    app.logger.info(f"   Professional SMS: {'✅ Ready' if can_send_prof_sms else '❌ No phone number'}")
+    
+    if not can_send_user_sms and not can_send_prof_sms:
+        app.logger.warning("⚠️ Neither user nor professional has phone number - booking created without SMS")
+    elif not can_send_user_sms:
+        app.logger.warning("⚠️ User has no phone number - only professional will receive SMS")
+    elif not can_send_prof_sms:
+        app.logger.warning("⚠️ Professional has no phone number - only user will receive SMS")
     
     # Generate booking ID
     booking_id = str(uuid.uuid4())
@@ -1017,21 +1357,100 @@ def create_automated_booking(conv_id: str, risk_assessment: Dict, user_account: 
             session_type, time.time(), time.time()
         ))
         
-        # Create notification for professional
+        # Create comprehensive notification for professional with user contact info
+        user_contact_info = ""
+        if user_data:
+            user_contact_info = f"\n\nUser Contact Information:\n"
+            user_contact_info += f"Name: {user_data.get('fullname', 'Not provided')}\n"
+            user_contact_info += f"Phone: {user_data.get('telephone', 'Not provided')}\n"
+            user_contact_info += f"Email: {user_data.get('email', 'Not provided')}\n"
+            user_contact_info += f"Location: {user_data.get('district', 'Unknown')}, {user_data.get('province', 'Unknown')}"
+        
         conn.execute("""
             INSERT INTO professional_notifications 
             (professional_id, booking_id, notification_type, title, message, priority, created_ts)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             professional['id'], booking_id, 'new_booking',
-            f"URGENT: {risk_assessment['risk_level'].upper()} Risk Case",
+            f"URGENT: {risk_assessment['risk_level'].upper()} Risk Case - {user_data.get('fullname', 'Anonymous User') if user_data else 'Anonymous User'}",
             f"Automated booking created for {risk_assessment['risk_level']} risk case. "
-            f"Risk indicators: {', '.join(risk_assessment['detected_indicators'][:3])}",
+            f"Risk indicators: {', '.join(risk_assessment['detected_indicators'][:3])}"
+            f"{user_contact_info}",
             'urgent' if risk_assessment['risk_level'] == 'critical' else 'high',
             time.time()
         ))
         
         conn.commit()
+        
+        # Prepare booking data for SMS
+        booking_data = {
+            'booking_id': booking_id,
+            'scheduled_time': scheduled_datetime,
+            'session_type': session_type,
+            'risk_level': risk_assessment['risk_level']
+        }
+        
+        # Send SMS notifications to both user and professional
+        sms_service = get_sms_service()
+        sms_results = {'user_sms': None, 'professional_sms': None}
+        
+        if sms_service:
+            app.logger.info(f"Starting SMS notifications for booking {booking_id}")
+            
+            # Send SMS to user if we have their data and phone number
+            if user_data and user_data.get('telephone'):
+                try:
+                    app.logger.info(f"Sending SMS to user {user_account} at {user_data.get('telephone')}")
+                    user_sms_result = sms_service.send_booking_notification(
+                        user_data, professional, booking_data
+                    )
+                    sms_results['user_sms'] = user_sms_result
+                    
+                    if user_sms_result.get('success'):
+                        app.logger.info(f"✅ SMS sent successfully to user {user_account}: {user_sms_result.get('phone')}")
+                    else:
+                        app.logger.warning(f"❌ Failed to send SMS to user {user_account}: {user_sms_result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    app.logger.error(f"❌ Error sending SMS to user: {str(e)}")
+                    sms_results['user_sms'] = {'success': False, 'error': str(e)}
+            else:
+                app.logger.warning(f"⚠️ Cannot send SMS to user {user_account}: No phone number or user data")
+                if not user_data:
+                    app.logger.warning(f"User data not found for {user_account}")
+                elif not user_data.get('telephone'):
+                    app.logger.warning(f"User {user_account} has no phone number: {user_data}")
+            
+            # Send SMS to professional if they have a phone number
+            if professional.get('phone'):
+                try:
+                    app.logger.info(f"Sending SMS to professional {professional['username']} at {professional.get('phone')}")
+                    prof_sms_result = sms_service.send_professional_notification(
+                        professional, user_data or {}, booking_data
+                    )
+                    sms_results['professional_sms'] = prof_sms_result
+                    
+                    if prof_sms_result.get('success'):
+                        app.logger.info(f"✅ SMS sent successfully to professional {professional['username']}: {prof_sms_result.get('phone')}")
+                    else:
+                        app.logger.warning(f"❌ Failed to send SMS to professional: {prof_sms_result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    app.logger.error(f"❌ Error sending SMS to professional: {str(e)}")
+                    sms_results['professional_sms'] = {'success': False, 'error': str(e)}
+            else:
+                app.logger.warning(f"⚠️ Cannot send SMS to professional {professional['username']}: No phone number")
+                app.logger.warning(f"Professional data: {professional}")
+            
+            # Log summary of SMS sending results
+            user_success = sms_results['user_sms'] and sms_results['user_sms'].get('success', False)
+            prof_success = sms_results['professional_sms'] and sms_results['professional_sms'].get('success', False)
+            
+            app.logger.info(f"📱 SMS Summary for booking {booking_id}:")
+            app.logger.info(f"   User SMS: {'✅ Sent' if user_success else '❌ Failed'}")
+            app.logger.info(f"   Professional SMS: {'✅ Sent' if prof_success else '❌ Failed'}")
+            
+        else:
+            app.logger.error("❌ SMS service not initialized - no SMS notifications sent")
+            app.logger.error("Please check SMS configuration and restart the application")
         
         return {
             'booking_id': booking_id,
@@ -1042,6 +1461,30 @@ def create_automated_booking(conv_id: str, risk_assessment: Dict, user_account: 
             'risk_level': risk_assessment['risk_level']
         }
         
+    finally:
+        conn.close()
+
+def get_user_data(username: str) -> Optional[Dict]:
+    """Get user data by username for SMS notifications"""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cursor = conn.execute("""
+            SELECT username, email, fullname, telephone, province, district
+            FROM users 
+            WHERE username = ?
+        """, (username,))
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'username': row[0],
+                'email': row[1],
+                'fullname': row[2],
+                'telephone': row[3],
+                'province': row[4],
+                'district': row[5]
+            }
+        return None
     finally:
         conn.close()
 
@@ -1068,7 +1511,7 @@ def generate_conversation_summary(conv_id: str) -> str:
         Keep it concise and professional for a mental health professional.
         """
         
-        response = ollama.chat(model=CHAT_MODEL, messages=[
+        response = _retry_ollama_call(ollama.chat, model=CHAT_MODEL, messages=[
             {"role": "system", "content": "You are a mental health AI assistant. Create professional summaries of conversations for mental health professionals."},
             {"role": "user", "content": ai_prompt}
         ])
@@ -1173,6 +1616,163 @@ def list_conversations(owner_key: str):
         conn.close()
 # --- end conversation helpers ---
 
+# --- Language detection helpers ---
+def create_language_specific_prompt(target_language: str) -> str:
+    """
+    Create a system prompt in the target language for direct AI response generation
+    """
+    prompts = {
+        'en': """You are AIMHSA, a professional mental health support assistant for Rwanda.
+
+Professional Guidelines:
+- Be warm, empathetic, and culturally sensitive
+- Provide evidence-based information from the context when available
+- ALWAYS respond in English - do not mix languages
+- Do NOT diagnose or prescribe medications
+- Encourage professional care when appropriate
+- For emergencies, always mention Rwanda's Mental Health Hotline: 105
+- Keep responses professional, concise, and helpful
+- Use the provided context to give accurate, relevant information
+- Maintain a natural, conversational tone in English
+- Ensure professional mental health support standards
+
+Remember: You are a professional mental health support system designed to provide immediate, culturally-appropriate assistance while connecting users to professional care when needed.""",
+
+        'fr': """Vous êtes AIMHSA, un assistant professionnel de soutien en santé mentale pour le Rwanda.
+
+Directives professionnelles:
+- Soyez chaleureux, empathique et culturellement sensible
+- Fournissez des informations basées sur des preuves du contexte quand disponible
+- RÉPONDEZ TOUJOURS en français - ne mélangez pas les langues
+- NE diagnostiquez PAS et ne prescrivez PAS de médicaments
+- Encouragez les soins professionnels quand approprié
+- Pour les urgences, mentionnez toujours la ligne d'assistance en santé mentale du Rwanda: 105
+- Gardez les réponses professionnelles, concises mais utiles
+- Utilisez le contexte fourni pour donner des informations précises et pertinentes
+- Maintenez un ton naturel et conversationnel en français
+- Assurez des standards professionnels de soutien en santé mentale
+
+Rappelez-vous: Vous êtes un système professionnel de soutien en santé mentale conçu pour fournir une assistance immédiate et culturellement appropriée tout en connectant les utilisateurs aux soins professionnels quand nécessaire.""",
+
+        'rw': """Uri AIMHSA, umufasha w'ubuzima bw'ubwoba bw'u Rwanda w'ubuhanga.
+
+Amabwiriza y'ubuhanga:
+- Ube umuntu w'umutima mwiza, w'umutima mwiza, kandi w'umutima mwiza
+- Tanga amakuru yashyizweho ku bikoresho byo mu cyerekezo mugihe cyose
+- VUGURA BURI GIHE mu Kinyarwanda GUSA - NTUVUGE mu ndimi zindi
+- NTUBAZE cyangwa NTUBAZE imiti
+- Gushimangira ubuvuzi bw'ubuhanga mugihe cyose
+- Ku bihano, tanga umutwe wa Ligne d'assistance en santé mentale y'u Rwanda: 105
+- Komeza amajwi make ariko akunze
+- Koresha icyerekezo cyatanzwe kugira ngo utange amakuru y'ukuri kandi yihariye
+- VUGURA BURI GIHE mu Kinyarwanda - NTUVUGE mu ndimi zindi
+- Koresha amagambo y'ukuri mu Kinyarwanda gusa
+- NTUVUGE mu ndimi zindi cyangwa utangire amagambo y'icyongereza
+- Komeza uko uvuga mu Kinyarwanda gusa, ube w'ubuhanga
+
+Wibuke: Uri hano kugira ngo ushyigikire, si kugira ngo usimbure ubuvuzi bw'ubuzima bw'ubwoba bw'ubuhanga. Vugura mu Kinyarwanda gusa, ube w'ubuhanga.""",
+
+        'sw': """Wewe ni AIMHSA, msaidizi wa kitaaluma wa afya ya akili wa Rwanda.
+
+Miongozo ya kitaaluma:
+- Kuwa mtu wa moyo mzuri, wa huruma, na wa utamaduni
+- Toa taarifa zilizotolewa kwa mazingira wakati wa muda wowote
+- JIBU KILA WAKATI kwa Kiswahili - usichanganye lugha
+- USITOE utambuzi au USITOE dawa
+- Himiza huduma ya kitaaluma wakati wowote
+- Kwa dharura, sema daima Ligne d'assistance en santé mentale ya Rwanda: 105
+- Weka majibu ya kitaaluma, mafupi lakini ya manufaa
+- Tumia mazingira yaliyotolewa kutoa taarifa sahihi na muhimu
+- Endelea kuzungumza kwa Kiswahili tu
+- Hakikisha viwango vya kitaaluma vya msaada wa afya ya akili
+
+Kumbuka: Wewe ni mfumo wa kitaaluma wa msaada wa afya ya akili ulioundwa kutoa msaada wa haraka na wa kitamaduni wakati wa kuhusisha watumiaji na huduma za kitaaluma wakati zinahitajika."""
+    }
+    
+    return prompts.get(target_language, prompts['en'])
+
+def determine_target_language(current_query: str, server_history: List[Dict], max_history_samples: int = 5) -> str:
+    """
+    Determine the target reply language with improved accuracy
+    - Prioritizes current query language detection
+    - Uses conversation history for consistency
+    - Returns one of: 'en', 'fr', 'rw', 'sw'
+    """
+    app.logger.info(f"Determining language for query: '{current_query[:50]}...'")
+    
+    # First priority: Current query language detection
+    try:
+        current_lang = translation_service.detect_language(current_query or "")
+        app.logger.info(f"Detected current query language: {current_lang}")
+        
+        # If current query language is detected with high confidence, use it immediately
+        if current_lang and current_lang != 'en':
+            app.logger.info(f"Using non-English current query language: {current_lang}")
+            return current_lang
+        elif current_lang == 'en':
+            # Check if this might be a false positive for English
+            # Look for non-English patterns in the query
+            non_english_indicators = [
+                'muraho', 'murakoze', 'ndabishimye',  # Kinyarwanda
+                'bonjour', 'merci', 'je suis',  # French  
+                'hujambo', 'asante', 'nina'  # Kiswahili
+            ]
+            
+            query_lower = current_query.lower()
+            for indicator in non_english_indicators:
+                if indicator in query_lower:
+                    # Re-detect with more aggressive pattern matching
+                    pattern_lang = translation_service._detect_by_patterns(current_query)
+                    if pattern_lang and pattern_lang != 'en':
+                        app.logger.info(f"Pattern override detected: {pattern_lang}")
+                        return pattern_lang
+    except Exception as e:
+        app.logger.warning(f"Language detection error for current query: {e}")
+        current_lang = "en"
+
+    # Second priority: Check recent conversation history for consistency
+    recent_user_texts: List[str] = []
+    for entry in reversed(server_history):
+        try:
+            if entry.get("role") == "user":
+                text = (entry.get("content") or "").strip()
+                if text:
+                    recent_user_texts.append(text)
+        except Exception:
+            continue
+        if len(recent_user_texts) >= max_history_samples:
+            break
+
+    # Analyze recent messages for language consistency
+    if recent_user_texts:
+        language_votes: Dict[str, int] = {}
+        
+        for text in recent_user_texts:
+            try:
+                detected_lang = translation_service.detect_language(text)
+                if detected_lang:
+                    language_votes[detected_lang] = language_votes.get(detected_lang, 0) + 1
+            except Exception:
+                continue
+        
+        # Find the most common language in recent history
+        if language_votes:
+            most_common_lang = max(language_votes.items(), key=lambda kv: kv[1])[0]
+            app.logger.info(f"Most common language in history: {most_common_lang} (votes: {language_votes})")
+            
+            # If current query is English but history shows another language, 
+            # and current query is short or ambiguous, prefer history language
+            if (current_lang == 'en' and 
+                most_common_lang != 'en' and 
+                len(current_query.strip()) < 30):
+                app.logger.info(f"Using history language {most_common_lang} due to short/ambiguous current query")
+                return most_common_lang
+
+    # Final fallback: Use current query language or default to English
+    final_lang = current_lang if current_lang else "en"
+    app.logger.info(f"Final language determination: {final_lang}")
+    return final_lang
+
 @app.post("/ask")
 def ask():
     data = request.get_json(force=True)
@@ -1237,15 +1837,22 @@ def ask():
         role = entry.get("role", "user")
         if role not in ("user", "assistant"):
             role = "user"
-        messages.append({"role": role, "content": entry.get("content", "")})
+        content_val = entry.get("content", "") or ""
+        if not isinstance(content_val, str):
+            content_val = str(content_val)
+        if not content_val.strip():
+            continue  # skip empty messages to satisfy model API
+        messages.append({"role": role, "content": content_val})
 
     # If client provided additional history, append it (and persist only if not already present)
     for entry in client_history:
         role = entry.get("role", "user")
         if role not in ("user", "assistant"):
             role = "user"
-        content = entry.get("content", "")
-        if content:
+        content = entry.get("content", "") or ""
+        if not isinstance(content, str):
+            content = str(content)
+        if content.strip():
             # normalize client's user entries when comparing against existing saved entries
             cmp_content = _extract_question_from_prompt(content) if role == "user" else content
             if (role, cmp_content) not in existing_set:
@@ -1257,11 +1864,13 @@ def ask():
                 messages.append({"role": role, "content": content})
 
     # retrieval-based context
-    top = retrieve(query, k=4)
+    # Retrieve more context for better grounded answers
+    top = retrieve(query, k=6)
     context = build_context(top)
 
-    user_prompt = f"""Answer the user's question using ONLY the CONTEXT below.
+    user_prompt = f"""Answer the user's question using the CONTEXT below when relevant.
 If the context is insufficient, be honest and provide safe, general guidance.
+If the user greets you or asks for general help, respond helpfully without requiring context.
 
 QUESTION:
 {query}
@@ -1270,12 +1879,16 @@ CONTEXT:
 {context}
 """
 
-    # add the current user question to messages (do NOT persist the whole user_prompt)
-    messages.append({"role": "user", "content": user_prompt})
+    # Determine stable target language from this query and recent history
+    target_language = determine_target_language(query, server_history)
+    app.logger.info(f"Target language determined: {target_language}")
+    
+    # Create language-specific system prompt for direct AI response generation
+    system_prompt = create_language_specific_prompt(target_language)
 
-    # Detect user language
-    user_language = translation_service.detect_language(query)
-    print(f"Detected user language: {user_language}")
+    # Add system prompt and user question to messages
+    messages.insert(0, {"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
 
     # Get conversation message count
     conn = sqlite3.connect(DB_FILE)
@@ -1354,30 +1967,94 @@ CONTEXT:
             messages.append({"role": "system", "content": emergency_prompt})
 
     try:
-        reply = ollama.chat(model=CHAT_MODEL, messages=messages)
-        answer = reply["message"]["content"]
+        # Select chat model: allow per-request override, fallback to env CHAT_MODEL
+        req_model = (data.get("model") or "").strip()
+        chat_model = req_model or CHAT_MODEL
+        # Use a conservative decoding config for accuracy and stability
+        app.logger.info(f"Calling Ollama chat with model: {chat_model}")
         
-        # Translate response to user's language if not English
-        if user_language != 'english':
-            try:
-                answer = translation_service.get_appropriate_response(answer, user_language)
-                print(f"Translated response to {user_language}")
-            except Exception as e:
-                print(f"Translation error: {e}")
-                # Keep original answer if translation fails
+        # Use retry wrapper (now fixed to remove timeout parameter)
+        app.logger.info(f"Sending messages to Ollama: {len(messages)} messages")
+        reply = _retry_ollama_call(ollama.chat, model=chat_model, messages=messages, options={"temperature": 0.2, "top_p": 0.9})
+        answer = reply.get("message", {}).get("content", "") or ""
+        app.logger.info(f"Ollama response received: {answer[:100]}...")
+        
+        # Check if answer is empty or too short
+        if not answer or len(answer.strip()) < 10:
+            app.logger.warning(f"Answer too short or empty: '{answer}'")
+            # Try a simpler prompt with just the query
+            simple_messages = [
+                {"role": "system", "content": f"You are AIMHSA, a supportive mental-health companion for Rwanda. Respond warmly and helpfully in {translation_service.get_language_name(target_language)}."},
+                {"role": "user", "content": query}
+            ]
+            app.logger.info("Trying simpler prompt...")
+            reply = _retry_ollama_call(ollama.chat, model=chat_model, messages=simple_messages, options={"temperature": 0.2, "top_p": 0.9})
+            answer = reply.get("message", {}).get("content", "") or ""
+            app.logger.info(f"Simple prompt response: {answer[:100]}...")
+            
+            # If still empty, provide a helpful default response
+            if not answer or len(answer.strip()) < 10:
+                if target_language == 'en':
+                    answer = f"Hello! I'm AIMHSA, your mental health companion for Rwanda. How can I support you today? If you need immediate help, contact the Mental Health Hotline at 105."
+                elif target_language == 'fr':
+                    answer = f"Bonjour! Je suis AIMHSA, votre compagnon de santé mentale pour le Rwanda. Comment puis-je vous aider aujourd'hui? Pour une aide immédiate, contactez la ligne d'assistance en santé mentale au 105."
+                elif target_language == 'rw':
+                    answer = f"Muraho! Nitwa AIMHSA, umufasha wawe w'ubuzima bw'ubwoba mu Rwanda. Nshobora gufasha ute uyu munsi? Niba ukeneye ubufasha buhagije, hamagara 105."
+                elif target_language == 'sw':
+                    answer = f"Hujambo! Mimi ni AIMHSA, msaidizi wako wa afya ya akili wa Rwanda. Ninawezaje kukusaidia leo? Ikiwa unahitaji msaada wa haraka, piga simu 105."
+                else:
+                    answer = f"Hello! I'm AIMHSA, your mental health companion for Rwanda. How can I support you today? If you need immediate help, contact the Mental Health Hotline at 105."
+        
+        # Enforce final-language safety: if model mixed languages or replied in wrong language,
+        # translate to target_language before returning
+        try:
+            detected_answer_lang = translation_service.detect_language(answer)
+            if detected_answer_lang != target_language and answer.strip():
+                app.logger.info(f"Answer language {detected_answer_lang} != target {target_language}; translating")
+                answer = translation_service.translate_text(answer, target_language)
+        except Exception as _e:
+            app.logger.warning(f"Post-translate guard failed: {_e}")
+
+        # If target is Kinyarwanda, apply normalization to clean any leaked phrases
+        try:
+            if target_language == 'rw' and answer.strip():
+                answer = translation_service.normalize_kinyarwanda(answer)
+        except Exception as _e:
+            app.logger.warning(f"Kinyarwanda normalization failed: {_e}")
+        app.logger.info(f"Generated response in {target_language}: {answer[:50]}...")
+        
+        # Ensure we never return an empty answer
+        if not isinstance(answer, str) or not answer.strip():
+            app.logger.warning("Empty answer received, using language-specific fallback")
+            
+            # Language-specific fallback responses
+            fallback_responses = {
+                'en': "I'm here to help. Could you please rephrase your question? If this is an emergency, contact Rwanda's Mental Health Hotline at 105 or CARAES Ndera Hospital at +250 788 305 703.",
+                'fr': "Je suis là pour vous aider. Pourriez-vous reformuler votre question? En cas d'urgence, contactez la ligne d'assistance en santé mentale du Rwanda au 105 ou l'hôpital CARAES Ndera au +250 788 305 703.",
+                'rw': "Ndi hano kugira ngo nkufashe. Murakoze muvugurure icyibazo cyanyu? Ku bihano, hamagara Ligne d'assistance en santé mentale y'u Rwanda ku 105 cyangwa CARAES Ndera Hospital ku +250 788 305 703.",
+                'sw': "Niko hapa kusaidia. Tafadhali rudia swali lako? Kwa dharura, piga simu ya Ligne d'assistance en santé mentale ya Rwanda 105 au CARAES Ndera Hospital +250 788 305 703."
+            }
+            
+            answer = fallback_responses.get(target_language, fallback_responses['en'])
+        else:
+            app.logger.info(f"Got valid answer: {answer[:50]}...")
                 
     except Exception as e:
         app.logger.error(f"Failed to get chat response with {CHAT_MODEL}: {e}")
-        # Provide a fallback response when the model is not available
-        fallback_en = f"I'm sorry, I'm having trouble accessing my AI model right now. However, I can still help you with mental health resources in Rwanda. Please contact the Mental Health Hotline at 105 or CARAES Ndera Hospital at +250 788 305 703 for immediate support. You can also try refreshing the page or contacting support if this issue persists."
+        app.logger.error(f"Exception type: {type(e).__name__}")
+        app.logger.error(f"Exception details: {str(e)}")
+        import traceback
+        app.logger.error(f"Traceback: {traceback.format_exc()}")
         
-        if user_language != 'english':
-            try:
-                answer = translation_service.get_appropriate_response(fallback_en, user_language)
-            except Exception:
-                answer = fallback_en
-        else:
-            answer = fallback_en
+        # Provide language-specific fallback response when the model is not available
+        fallback_responses = {
+            'en': "I'm sorry, I'm having trouble accessing my AI model right now. However, I can still help you with mental health resources in Rwanda. Please contact the Mental Health Hotline at 105 or CARAES Ndera Hospital at +250 788 305 703 for immediate support. You can also try refreshing the page or contacting support if this issue persists.",
+            'fr': "Je suis désolé, j'ai des difficultés à accéder à mon modèle IA en ce moment. Cependant, je peux toujours vous aider avec les ressources de santé mentale au Rwanda. Veuillez contacter la ligne d'assistance en santé mentale au 105 ou l'hôpital CARAES Ndera au +250 788 305 703 pour un soutien immédiat. Vous pouvez aussi essayer de rafraîchir la page ou contacter le support si ce problème persiste.",
+            'rw': "Ndamukanya, nfite ibibazo bwo kugera ku modere yanjye ya AI ubu. Icyakora, narakomeje gufasha ku bikoresho by'ubuzima bw'ubwoba mu Rwanda. Murakoze hamagara Ligne d'assistance en santé mentale ku 105 cyangwa CARAES Ndera Hospital ku +250 788 305 703 kugira ngo mubone ubufasha buhagije. Murashobora kandi kugerageza gusubiramo urupapuro cyangwa guhamagara ubufasha niba iki kibazo gikomeje.",
+            'sw': "Samahani, nina shida ya kufikia moduli yangu ya AI sasa. Hata hivyo, bado naweza kukusaidia na rasilimali za afya ya akili Rwanda. Tafadhali piga simu ya Ligne d'assistance en santé mentale 105 au CARAES Ndera Hospital +250 788 305 703 kwa msaada wa haraka. Unaweza pia kujaribu kurudisha ukurasa au kuwasiliana na msaada iki tatizo likaendelea."
+        }
+        
+        answer = fallback_responses.get(target_language, fallback_responses['en'])
 
     # persist the current user RAW query (not the constructed user_prompt) and assistant reply
     save_message(conv_id, "user", query)
@@ -1385,10 +2062,6 @@ CONTEXT:
 
     sources = [{"source": m["source"], "chunk": m["chunk"]} for (_, m) in top]
     resp = {"answer": answer, "sources": sources, "id": conv_id}
-    
-    # Add language detection info
-    resp["detected_language"] = user_language
-    resp["language_name"] = translation_service.get_language_name(user_language)
     
     # Add risk assessment and booking info to response
     resp["risk_assessment"] = {
@@ -1878,52 +2551,179 @@ def archive_conversation():
 def register():
     """
     POST /register
-    JSON: { "username": "...", "password": "..." }
+    JSON: { "username": "...", "email": "...", "fullname": "...", "telephone": "...", "province": "...", "district": "...", "password": "..." }
     """
     try:
         data = request.get_json(force=True)
     except Exception:
         return jsonify({"error": "Invalid JSON"}), 400
+    
+    # Extract and validate all fields
     username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+    fullname = (data.get("fullname") or "").strip()
+    telephone = (data.get("telephone") or "").strip()
+    province = (data.get("province") or "").strip()
+    district = (data.get("district") or "").strip()
     password = (data.get("password") or "")
-    if not username or not password:
-        return jsonify({"error": "username and password required"}), 400
-    pw_hash = generate_password_hash(password)
+    
+    # Collect validation errors
+    errors = {}
+    
+    # Validate required fields
+    if not username:
+        errors['username'] = 'Username is required'
+    if not email:
+        errors['email'] = 'Email is required'
+    if not fullname:
+        errors['fullname'] = 'Full name is required'
+    if not telephone:
+        errors['telephone'] = 'Phone number is required'
+    if not province:
+        errors['province'] = 'Province is required'
+    if not district:
+        errors['district'] = 'District is required'
+    if not password:
+        errors['password'] = 'Password is required'
+    
+    # Email validation
+    import re
+    if email:
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            errors['email'] = 'Please enter a valid email address'
+    
+    # Phone validation (Rwanda format)
+    if telephone:
+        phone_pattern = r'^(\+250|0)[0-9]{9}$'
+        if not re.match(phone_pattern, telephone):
+            errors['telephone'] = 'Please enter a valid Rwanda phone number (+250XXXXXXXXX or 07XXXXXXXX)'
+    
+    # Username validation
+    if username:
+        if len(username) < 3:
+            errors['username'] = 'Username must be at least 3 characters'
+        elif len(username) > 50:
+            errors['username'] = 'Username must be less than 50 characters'
+        elif not re.match(r'^[a-zA-Z0-9_]+$', username):
+            errors['username'] = 'Username can only contain letters, numbers, and underscores'
+    
+    # Full name validation
+    if fullname:
+        if len(fullname) < 2:
+            errors['fullname'] = 'Full name must be at least 2 characters'
+        elif len(fullname) > 100:
+            errors['fullname'] = 'Full name must be less than 100 characters'
+        elif not re.match(r'^[a-zA-Z\s\-\'\.]+$', fullname):
+            errors['fullname'] = 'Full name can only contain letters, spaces, hyphens, apostrophes, and periods'
+        elif len(fullname.strip().split()) < 2:
+            errors['fullname'] = 'Please enter your complete name (first and last name)'
+    
+    # Password validation
+    if password:
+        if len(password) < 8:
+            errors['password'] = 'Password must be at least 8 characters long'
+        elif len(password) > 128:
+            errors['password'] = 'Password must be less than 128 characters'
+        elif not re.search(r'[a-zA-Z]', password):
+            errors['password'] = 'Password must contain at least one letter'
+        elif not re.search(r'[0-9]', password):
+            errors['password'] = 'Password must contain at least one number'
+    
+    # Province validation
+    if province:
+        valid_provinces = ['Kigali', 'Eastern', 'Northern', 'Southern', 'Western']
+        if province not in valid_provinces:
+            errors['province'] = 'Please select a valid province'
+    
+    # District validation
+    if district and province:
+        province_districts = {
+            'Kigali': ['Gasabo', 'Kicukiro', 'Nyarugenge'],
+            'Eastern': ['Bugesera', 'Gatsibo', 'Kayonza', 'Kirehe', 'Ngoma', 'Nyagatare', 'Rwamagana'],
+            'Northern': ['Burera', 'Gakenke', 'Gicumbi', 'Musanze', 'Rulindo'],
+            'Southern': ['Gisagara', 'Huye', 'Kamonyi', 'Muhanga', 'Nyamagabe', 'Nyanza', 'Nyaruguru', 'Ruhango'],
+            'Western': ['Karongi', 'Ngororero', 'Nyabihu', 'Nyamasheke', 'Rubavu', 'Rusizi', 'Rutsiro']
+        }
+        if province in province_districts and district not in province_districts[province]:
+            errors['district'] = 'Please select a valid district for the selected province'
+    
+    # Return field-specific errors if any
+    if errors:
+        return jsonify({"errors": errors, "message": "Please correct the errors below"}), 400
+    
+    # Check if user already exists before attempting to insert
     conn = sqlite3.connect(DB_FILE)
     try:
-        try:
-            conn.execute(
-                "INSERT INTO users (username, password_hash, created_ts) VALUES (?, ?, ?)",
-                (username, pw_hash, time.time()),
-            )
-            conn.commit()
-        except sqlite3.IntegrityError:
-            return jsonify({"error": "username exists"}), 409
+        # Check if username already exists
+        cur = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+        if cur.fetchone():
+            return jsonify({"errors": {"username": "This username is already taken. Please choose another."}, "message": "Please correct the errors below"}), 409
+        
+        # Check if email already exists
+        cur = conn.execute("SELECT 1 FROM users WHERE email = ?", (email,))
+        if cur.fetchone():
+            return jsonify({"errors": {"email": "This email is already registered. Please use a different email."}, "message": "Please correct the errors below"}), 409
+        
+        # Check if telephone already exists
+        cur = conn.execute("SELECT 1 FROM users WHERE telephone = ?", (telephone,))
+        if cur.fetchone():
+            return jsonify({"errors": {"telephone": "This phone number is already registered. Please use a different phone number."}, "message": "Please correct the errors below"}), 409
+        
+        # All validations passed, create the user
+        pw_hash = generate_password_hash(password)
+        conn.execute(
+            "INSERT INTO users (username, email, fullname, telephone, province, district, password_hash, created_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (username, email, fullname, telephone, province, district, pw_hash, time.time()),
+        )
+        conn.commit()
+        
+    except sqlite3.IntegrityError as e:
+        # Fallback error handling in case of race conditions
+        if "username" in str(e):
+            return jsonify({"errors": {"username": "This username is already taken. Please choose another."}, "message": "Please correct the errors below"}), 409
+        elif "email" in str(e):
+            return jsonify({"errors": {"email": "This email is already registered. Please use a different email."}, "message": "Please correct the errors below"}), 409
+        elif "telephone" in str(e):
+            return jsonify({"errors": {"telephone": "This phone number is already registered. Please use a different phone number."}, "message": "Please correct the errors below"}), 409
+        else:
+            return jsonify({"error": "Registration failed. Please try again."}), 409
+    except Exception as e:
+        app.logger.error(f"Registration error: {e}")
+        return jsonify({"error": "Registration failed. Please try again."}), 500
     finally:
         conn.close()
-    return jsonify({"ok": True, "account": username})
+    
+    return jsonify({"ok": True, "account": username, "message": "Account created successfully"})
 
 @app.post("/login")
 def login():
     """
     POST /login
-    JSON: { "username": "...", "password": "..." }
+    JSON: { "email": "...", "password": "..." }
     """
     try:
         data = request.get_json(force=True)
     except Exception:
         return jsonify({"error": "Invalid JSON"}), 400
-    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
     password = (data.get("password") or "")
-    if not username or not password:
-        return jsonify({"error": "username and password required"}), 400
+    if not email or not password:
+        return jsonify({"error": "email and password required"}), 400
+    
+    # Email validation
+    import re
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
     conn = sqlite3.connect(DB_FILE)
     try:
-        cur = conn.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+        cur = conn.execute("SELECT username, password_hash FROM users WHERE email = ?", (email,))
         row = cur.fetchone()
         if not row:
             return jsonify({"error": "invalid credentials"}), 401
-        stored = row[0]
+        username, stored = row
         if not check_password_hash(stored, password):
             return jsonify({"error": "invalid credentials"}), 401
     finally:
@@ -1935,32 +2735,108 @@ def login():
 def forgot_password():
     """
     POST /forgot_password
-    JSON: { "username": "..." }
-    Creates a short-lived reset token. In this demo, the token is returned in the response.
+    JSON: { "email": "..." }
+    Creates a short-lived reset token and sends it via email.
     """
     try:
         data = request.get_json(force=True)
     except Exception:
         return jsonify({"error": "Invalid JSON"}), 400
-    username = (data.get("username") or "").strip()
-    if not username:
-        return jsonify({"error": "username required"}), 400
+    email = (data.get("email") or "").strip()
+    if not email:
+        return jsonify({"error": "email required"}), 400
+    
+    # Email validation
+    import re
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
     # verify user exists
     conn = sqlite3.connect(DB_FILE)
     try:
-        cur = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,))
-        if not cur.fetchone():
+        cur = conn.execute("SELECT username, fullname FROM users WHERE email = ?", (email,))
+        user_row = cur.fetchone()
+        if not user_row:
             # do not reveal whether the user exists; still return ok
-            return jsonify({"ok": True})
+            return jsonify({"ok": True, "message": "If the email exists, a reset code has been sent."})
+        
+        username, fullname = user_row
+        
+        # Check if there's already an active reset token for this user
+        cur = conn.execute(
+            "SELECT id FROM password_resets WHERE username = ? AND used = 0 AND expires_ts > ?",
+            (username, time.time())
+        )
+        existing_token = cur.fetchone()
+        
+        if existing_token:
+            # Invalidate the existing token
+            conn.execute("UPDATE password_resets SET used = 1 WHERE id = ?", (existing_token[0],))
+        
+        # Generate new reset token
         token = uuid.uuid4().hex[:6].upper()  # 6-char code
         expires = time.time() + 15 * 60  # 15 minutes
+        
+        # Store the reset token
         conn.execute(
             "INSERT INTO password_resets (username, token, expires_ts, used) VALUES (?, ?, ?, 0)",
             (username, token, expires),
         )
         conn.commit()
-        # In production, email/SMS this code. For demo, return it.
-        return jsonify({"ok": True, "token": token, "expires_in": 900})
+        
+        # Send email with reset code
+        try:
+            send_password_reset_email(email, username, token)
+            return jsonify({
+                "ok": True, 
+                "message": "Password reset code sent to your email.",
+                "user_info": {
+                    "username": username,
+                    "fullname": fullname
+                }
+            })
+        except Exception as e:
+            # If email fails, still return the token for demo purposes
+            app.logger.error(f"Failed to send email: {e}")
+            return jsonify({
+                "ok": True, 
+                "token": token, 
+                "expires_in": 900, 
+                "message": "Email service unavailable. Use this code for testing.",
+                "user_info": {
+                    "username": username,
+                    "fullname": fullname
+                }
+            })
+            
+    finally:
+        conn.close()
+
+@app.get("/forgot_password/available_emails")
+def get_available_emails():
+    """
+    GET /forgot_password/available_emails
+    Returns list of available emails for testing purposes
+    """
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("SELECT DISTINCT email, username, fullname FROM users ORDER BY email")
+        users = cur.fetchall()
+        
+        emails = []
+        for user in users:
+            emails.append({
+                "email": user[0],
+                "username": user[1], 
+                "fullname": user[2]
+            })
+        
+        return jsonify({
+            "ok": True,
+            "available_emails": emails,
+            "count": len(emails)
+        })
     finally:
         conn.close()
 
@@ -1968,22 +2844,37 @@ def forgot_password():
 def reset_password():
     """
     POST /reset_password
-    JSON: { "username": "...", "token": "ABC123", "new_password": "..." }
+    JSON: { "email": "...", "token": "ABC123", "new_password": "..." }
     Validates token and updates the user's password.
     """
     try:
         data = request.get_json(force=True)
     except Exception:
         return jsonify({"error": "Invalid JSON"}), 400
-    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
     token = (data.get("token") or "").strip().upper()
     new_password = (data.get("new_password") or "")
-    if not username or not token or not new_password:
-        return jsonify({"error": "username, token, and new_password required"}), 400
+    if not email or not token or not new_password:
+        return jsonify({"error": "email, token, and new_password required"}), 400
     if len(new_password) < 6:
         return jsonify({"error": "new_password too short"}), 400
+    
+    # Email validation
+    import re
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
     conn = sqlite3.connect(DB_FILE)
     try:
+        # First get the username from email
+        cur = conn.execute("SELECT username FROM users WHERE email = ?", (email,))
+        user_row = cur.fetchone()
+        if not user_row:
+            return jsonify({"error": "invalid email"}), 400
+        username = user_row[0]
+        
+        # Then validate the token
         cur = conn.execute(
             "SELECT id, expires_ts, used FROM password_resets WHERE username = ? AND token = ?",
             (username, token),
@@ -2001,7 +2892,20 @@ def reset_password():
         conn.execute("UPDATE users SET password_hash = ? WHERE username = ?", (pw_hash, username))
         conn.execute("UPDATE password_resets SET used = 1 WHERE id = ?", (reset_id,))
         conn.commit()
-        return jsonify({"ok": True})
+        
+        # Get user info for confirmation
+        cur = conn.execute("SELECT email, fullname FROM users WHERE username = ?", (username,))
+        user_info = cur.fetchone()
+        
+        return jsonify({
+            "ok": True, 
+            "message": "Password reset successfully. You can now login with your new password.",
+            "user_info": {
+                "username": username,
+                "email": user_info[0] if user_info else email,
+                "fullname": user_info[1] if user_info else "User"
+            }
+        })
     finally:
         conn.close()
 
@@ -2104,6 +3008,30 @@ def create_professional():
     
     conn = sqlite3.connect(DB_FILE)
     try:
+        # Check if username already exists
+        existing_username = conn.execute(
+            "SELECT username FROM professionals WHERE username = ?", 
+            (data['username'],)
+        ).fetchone()
+        
+        if existing_username:
+            return jsonify({
+                "error": "Username already exists", 
+                "details": f"Username '{data['username']}' is already taken. Please choose a different username."
+            }), 409
+        
+        # Check if email already exists
+        existing_email = conn.execute(
+            "SELECT email FROM professionals WHERE email = ?", 
+            (data['email'],)
+        ).fetchone()
+        
+        if existing_email:
+            return jsonify({
+                "error": "Email already exists", 
+                "details": f"Email '{data['email']}' is already registered. Please use a different email."
+            }), 409
+        
         conn.execute("""
             INSERT INTO professionals 
             (username, password_hash, first_name, last_name, email, phone, license_number,
@@ -2124,10 +3052,46 @@ def create_professional():
         ))
         conn.commit()
         return jsonify({"ok": True, "message": "Professional created successfully"})
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Username already exists"}), 409
+    except sqlite3.IntegrityError as e:
+        return jsonify({
+            "error": "Database constraint violation", 
+            "details": str(e)
+        }), 409
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.get("/admin/professionals/check-availability")
+def check_professional_availability():
+    """Check if username or email is available"""
+    username = request.args.get('username')
+    email = request.args.get('email')
+    
+    if not username and not email:
+        return jsonify({"error": "Provide either username or email to check"}), 400
+    
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        result = {"username_available": True, "email_available": True}
+        
+        if username:
+            existing_username = conn.execute(
+                "SELECT username FROM professionals WHERE username = ?", 
+                (username,)
+            ).fetchone()
+            result["username_available"] = existing_username is None
+            result["username"] = username
+        
+        if email:
+            existing_email = conn.execute(
+                "SELECT email FROM professionals WHERE email = ?", 
+                (email,)
+            ).fetchone()
+            result["email_available"] = existing_email is None
+            result["email"] = email
+        
+        return jsonify(result)
     finally:
         conn.close()
 
@@ -2135,16 +3099,24 @@ def create_professional():
 def list_professionals():
     """List all professionals with filtering"""
     specialization = request.args.get('specialization')
-    is_active = request.args.get('is_active', '1')
+    is_active = request.args.get('is_active')  # Remove default value to show all
     
     conn = sqlite3.connect(DB_FILE)
     try:
-        query = "SELECT * FROM professionals WHERE is_active = ?"
-        params = [is_active]
+        query = "SELECT * FROM professionals"
+        params = []
+        conditions = []
+        
+        if is_active is not None:
+            conditions.append("is_active = ?")
+            params.append(is_active)
         
         if specialization:
-            query += " AND specialization = ?"
+            conditions.append("specialization = ?")
             params.append(specialization)
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         
         query += " ORDER BY created_ts DESC"
         
@@ -2166,18 +3138,183 @@ def list_professionals():
     finally:
         conn.close()
 
-@app.get("/admin/bookings")
-def list_bookings():
-    """List all automated bookings"""
-    status = request.args.get('status')
-    risk_level = request.args.get('risk_level')
+@app.put("/admin/professionals/<int:prof_id>")
+def update_professional(prof_id: int):
+    """Update a professional's information"""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
     
     conn = sqlite3.connect(DB_FILE)
     try:
+        # Debug: Log received data
+        print(f"Update professional {prof_id} - Received data: {data}")
+        
+        # Check if professional exists
+        cur = conn.execute("SELECT id FROM professionals WHERE id = ?", (prof_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Professional not found"}), 404
+        
+        # Prepare update fields
+        update_fields = []
+        update_values = []
+        
+        # Handle password update separately
+        if 'password' in data and data['password']:
+            password_hash = generate_password_hash(data['password'])
+            update_fields.append("password_hash = ?")
+            update_values.append(password_hash)
+        
+        # Handle other fields
+        allowed_fields = [
+            'username', 'first_name', 'last_name', 'email', 'phone', 'license_number',
+            'specialization', 'location_latitude', 'location_longitude',
+            'location_address', 'district', 'max_patients_per_day',
+            'consultation_fee', 'experience_years', 'bio', 'profile_picture'
+        ]
+        
+        for field in allowed_fields:
+            if field in data:
+                update_fields.append(f"{field} = ?")
+                update_values.append(data[field])
+                print(f"Processing field: {field} = {data[field]}")
+        
+        print(f"Update fields: {update_fields}")
+        
+        # Handle JSON fields
+        if 'expertise_areas' in data:
+            update_fields.append("expertise_areas = ?")
+            update_values.append(json.dumps(data['expertise_areas']))
+        
+        if 'languages' in data:
+            update_fields.append("languages = ?")
+            update_values.append(json.dumps(data['languages']))
+        
+        if 'qualifications' in data:
+            update_fields.append("qualifications = ?")
+            update_values.append(json.dumps(data['qualifications']))
+        
+        if 'availability_schedule' in data:
+            update_fields.append("availability_schedule = ?")
+            update_values.append(json.dumps(data['availability_schedule']))
+        
+        if not update_fields:
+            return jsonify({"error": "No fields to update"}), 400
+        
+        # Add updated timestamp
+        update_fields.append("updated_ts = ?")
+        update_values.append(time.time())
+        
+        # Add professional ID for WHERE clause
+        update_values.append(prof_id)
+        
+        # Execute update
+        query = f"UPDATE professionals SET {', '.join(update_fields)} WHERE id = ?"
+        conn.execute(query, update_values)
+        conn.commit()
+        
+        return jsonify({"ok": True, "message": "Professional updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.delete("/admin/professionals/<int:prof_id>")
+def delete_professional(prof_id: int):
+    """Delete a professional account"""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        # Check if professional exists
+        cur = conn.execute("SELECT id, username FROM professionals WHERE id = ?", (prof_id,))
+        professional = cur.fetchone()
+        if not professional:
+            return jsonify({"error": "Professional not found"}), 404
+        
+        # Check if professional has any active bookings
+        cur = conn.execute("""
+            SELECT COUNT(*) FROM automated_bookings 
+            WHERE professional_id = ? AND booking_status IN ('pending', 'confirmed')
+        """, (prof_id,))
+        active_bookings = cur.fetchone()[0]
+        
+        if active_bookings > 0:
+            return jsonify({
+                "error": "Cannot delete professional with active bookings",
+                "details": f"Professional has {active_bookings} active booking(s). Please resolve these bookings first."
+            }), 409
+        
+        # Delete the professional
+        conn.execute("DELETE FROM professionals WHERE id = ?", (prof_id,))
+        conn.commit()
+        
+        return jsonify({
+            "ok": True, 
+            "message": f"Professional '{professional[1]}' deleted successfully"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.post("/admin/professionals/<int:prof_id>/status")
+def toggle_professional_status(prof_id: int):
+    """Activate/Deactivate a professional account"""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    if 'is_active' not in data:
+        return jsonify({"error": "Missing is_active"}), 400
+
+    is_active = 1 if bool(data['is_active']) else 0
+
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("SELECT id FROM professionals WHERE id = ?", (prof_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Professional not found"}), 404
+
+        conn.execute(
+            "UPDATE professionals SET is_active = ?, updated_ts = ? WHERE id = ?",
+            (is_active, time.time(), prof_id)
+        )
+        conn.commit()
+        return jsonify({"ok": True, "id": prof_id, "is_active": bool(is_active)})
+    finally:
+        conn.close()
+
+@app.get("/admin/bookings")
+def list_bookings():
+    """List all automated bookings with user and professional information"""
+    status = request.args.get('status')
+    risk_level = request.args.get('risk_level')
+    limit = int(request.args.get('limit', 100))
+    
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        # Get all bookings with user and professional information
         query = """
-            SELECT ab.*, p.first_name, p.last_name, p.specialization, p.email, p.phone
+            SELECT 
+                ab.*,
+                u.fullname as user_fullname,
+                u.email as user_email,
+                u.telephone as user_phone,
+                u.province as user_province,
+                u.district as user_district,
+                (u.district || ', ' || u.province) as user_location,
+                u.created_ts as user_created_ts,
+                p.first_name as professional_first_name,
+                p.last_name as professional_last_name,
+                p.specialization as professional_specialization,
+                p.email as professional_email,
+                p.phone as professional_phone,
+                p.experience_years as professional_experience,
+                (p.first_name || ' ' || p.last_name) as professional_name
             FROM automated_bookings ab
-            JOIN professionals p ON ab.professional_id = p.id
+            LEFT JOIN users u ON ab.user_account = u.username
+            LEFT JOIN professionals p ON ab.professional_id = p.id
         """
         params = []
         conditions = []
@@ -2193,7 +3330,8 @@ def list_bookings():
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         
-        query += " ORDER BY ab.created_ts DESC"
+        query += " ORDER BY ab.created_ts DESC LIMIT ?"
+        params.append(limit)
         
         cur = conn.execute(query, params)
         rows = cur.fetchall()
@@ -2203,9 +3341,45 @@ def list_bookings():
         for row in rows:
             booking = dict(zip(columns, row))
             booking['detected_indicators'] = json.loads(booking.get('detected_indicators', '[]'))
+            
+            # Handle professional name
+            if booking.get('professional_first_name') and booking.get('professional_last_name'):
+                booking['professional_name'] = f"{booking['professional_first_name']} {booking['professional_last_name']}"
+            else:
+                booking['professional_name'] = 'Unassigned'
+            
+            # Handle user name
+            if not booking.get('user_fullname'):
+                booking['user_fullname'] = booking.get('user_account', 'Guest User')
+            
             bookings.append(booking)
         
-        return jsonify({"bookings": bookings})
+        # Calculate statistics
+        stats_query = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN booking_status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
+                SUM(CASE WHEN booking_status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN risk_level = 'critical' THEN 1 ELSE 0 END) as critical
+            FROM automated_bookings
+        """
+        
+        stats_cur = conn.execute(stats_query)
+        stats_row = stats_cur.fetchone()
+        stats = {
+            'total': stats_row[0] if stats_row[0] else 0,
+            'confirmed': stats_row[1] if stats_row[1] else 0,
+            'pending': stats_row[2] if stats_row[2] else 0,
+            'critical': stats_row[3] if stats_row[3] else 0
+        }
+        
+        return jsonify({
+            "bookings": bookings,
+            "total": stats['total'],
+            "confirmed": stats['confirmed'],
+            "pending": stats['pending'],
+            "critical": stats['critical']
+        })
     finally:
         conn.close()
 
@@ -2234,6 +3408,63 @@ def list_risk_assessments():
     finally:
         conn.close()
 
+@app.get("/admin/users")
+def list_users():
+    """List all users for admin dashboard"""
+    limit = int(request.args.get('limit', 100))
+    search = request.args.get('search', '')
+    
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        # Build query with optional search
+        query = """
+            SELECT u.username, u.email, u.fullname, u.telephone, u.province, u.district, u.created_ts,
+                   COALESCE(ra.risk_level, 'low') as latest_risk_level,
+                   COALESCE(ra.risk_score, 0.0) as latest_risk_score,
+                   COALESCE(ra.assessment_timestamp, 0) as last_assessment_time
+            FROM users u
+            LEFT JOIN (
+                SELECT user_account, risk_level, risk_score, assessment_timestamp,
+                       ROW_NUMBER() OVER (PARTITION BY user_account ORDER BY assessment_timestamp DESC) as rn
+                FROM risk_assessments
+            ) ra ON u.username = ra.user_account AND ra.rn = 1
+        """
+        
+        params = []
+        if search:
+            query += " WHERE (u.username LIKE ? OR u.fullname LIKE ? OR u.email LIKE ?)"
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term, search_term])
+        
+        query += " ORDER BY u.created_ts DESC LIMIT ?"
+        params.append(limit)
+        
+        cur = conn.execute(query, params)
+        rows = cur.fetchall()
+        
+        users = []
+        columns = [desc[0] for desc in cur.description]
+        for row in rows:
+            user = dict(zip(columns, row))
+            # Format last active time
+            if user['last_assessment_time'] > 0:
+                user['last_active'] = datetime.fromtimestamp(user['last_assessment_time']).strftime('%Y-%m-%d %H:%M')
+            else:
+                user['last_active'] = 'Never'
+            
+            # Determine status based on recent activity
+            if user['last_assessment_time'] > 0:
+                days_since_active = (time.time() - user['last_assessment_time']) / 86400
+                user['status'] = 'Active' if days_since_active < 7 else 'Inactive'
+            else:
+                user['status'] = 'New'
+                
+            users.append(user)
+        
+        return jsonify({"users": users})
+    finally:
+        conn.close()
+
 # Professional endpoints
 @app.post("/professional/login")
 def professional_login():
@@ -2243,20 +3474,31 @@ def professional_login():
     except Exception:
         return jsonify({"error": "Invalid JSON"}), 400
     
+    # Accept either username or email for convenience
     username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
     password = (data.get("password") or "")
     
-    if not username or not password:
-        return jsonify({"error": "username and password required"}), 400
+    if (not username and not email) or not password:
+        return jsonify({"error": "username/email and password required"}), 400
     
     conn = sqlite3.connect(DB_FILE)
     try:
-        cur = conn.execute("SELECT id, password_hash, first_name, last_name FROM professionals WHERE username = ? AND is_active = 1", (username,))
+        if username:
+            cur = conn.execute(
+                "SELECT id, password_hash, first_name, last_name, username, email FROM professionals WHERE username = ? AND is_active = 1",
+                (username,)
+            )
+        else:
+            cur = conn.execute(
+                "SELECT id, password_hash, first_name, last_name, username, email FROM professionals WHERE email = ? AND is_active = 1",
+                (email,)
+            )
         row = cur.fetchone()
         if not row:
             return jsonify({"error": "invalid credentials"}), 401
         
-        prof_id, stored_hash, first_name, last_name = row
+        prof_id, stored_hash, first_name, last_name, uname, uemail = row
         if not check_password_hash(stored_hash, password):
             return jsonify({"error": "invalid credentials"}), 401
         
@@ -2264,14 +3506,20 @@ def professional_login():
             "ok": True, 
             "professional_id": prof_id,
             "name": f"{first_name} {last_name}",
-            "username": username
+            "username": uname,
+            "email": uemail
         })
     finally:
         conn.close()
 
+@app.post("/logout")
+def logout():
+    """Logout endpoint - clears all sessions"""
+    return jsonify({"ok": True, "message": "Logged out successfully"})
+
 @app.post("/admin/login")
 def admin_login():
-    """Admin login"""
+    """Admin login - redirects to dashboard"""
     try:
         data = request.get_json(force=True)
     except Exception:
@@ -2294,15 +3542,28 @@ def admin_login():
         if not check_password_hash(stored_hash, password):
             return jsonify({"error": "invalid credentials"}), 401
         
+        # Create admin session token
+        import secrets
+        session_token = secrets.token_urlsafe(32)
+        
         return jsonify({
-            "ok": True, 
+            "ok": True,
+            "redirect": "/admin_dashboard.html",
             "admin_id": admin_id,
             "username": username,
             "email": email,
-            "role": role
+            "role": role,
+            "session_token": session_token
         })
     finally:
         conn.close()
+
+
+@app.get("/admin_dashboard.html")
+def admin_dashboard():
+    """Serve admin dashboard page"""
+    return send_from_directory(_CHATBOT_STATIC_DIR, 'admin_dashboard.html')
+
 
 
 
@@ -2437,6 +3698,207 @@ def get_recent_assessments():
 # Update run configuration to use port 5057 for API only
 # --- PROFESSIONAL DASHBOARD API ENDPOINTS ---
 
+@app.put("/professional/profile")
+def update_professional_profile():
+    """Update professional profile information"""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+    
+    professional_id = request.headers.get('X-Professional-ID')
+    if not professional_id:
+        return jsonify({"error": "Professional ID required"}), 400
+    
+    # Optional fields that can be updated
+    update_fields = []
+    update_values = []
+    
+    # Check which fields are provided and prepare update query
+    if 'first_name' in data:
+        update_fields.append("first_name = ?")
+        update_values.append(data['first_name'])
+    
+    if 'last_name' in data:
+        update_fields.append("last_name = ?")
+        update_values.append(data['last_name'])
+    
+    if 'email' in data:
+        update_fields.append("email = ?")
+        update_values.append(data['email'])
+    
+    if 'phone' in data:
+        update_fields.append("phone = ?")
+        update_values.append(data['phone'])
+    
+    if 'license_number' in data:
+        update_fields.append("license_number = ?")
+        update_values.append(data['license_number'])
+    
+    if 'specialization' in data:
+        update_fields.append("specialization = ?")
+        update_values.append(data['specialization'])
+    
+    if 'expertise_areas' in data:
+        update_fields.append("expertise_areas = ?")
+        update_values.append(json.dumps(data['expertise_areas']))
+    
+    if 'location_latitude' in data:
+        update_fields.append("location_latitude = ?")
+        update_values.append(data['location_latitude'])
+    
+    if 'location_longitude' in data:
+        update_fields.append("location_longitude = ?")
+        update_values.append(data['location_longitude'])
+    
+    if 'location_address' in data:
+        update_fields.append("location_address = ?")
+        update_values.append(data['location_address'])
+    
+    if 'district' in data:
+        update_fields.append("district = ?")
+        update_values.append(data['district'])
+    
+    if 'availability_schedule' in data:
+        update_fields.append("availability_schedule = ?")
+        update_values.append(json.dumps(data['availability_schedule']))
+    
+    if 'max_patients_per_day' in data:
+        update_fields.append("max_patients_per_day = ?")
+        update_values.append(data['max_patients_per_day'])
+    
+    if 'consultation_fee' in data:
+        update_fields.append("consultation_fee = ?")
+        update_values.append(data['consultation_fee'])
+    
+    if 'languages' in data:
+        update_fields.append("languages = ?")
+        update_values.append(json.dumps(data['languages']))
+    
+    if 'qualifications' in data:
+        update_fields.append("qualifications = ?")
+        update_values.append(json.dumps(data['qualifications']))
+    
+    if 'experience_years' in data:
+        update_fields.append("experience_years = ?")
+        update_values.append(data['experience_years'])
+    
+    if 'bio' in data:
+        update_fields.append("bio = ?")
+        update_values.append(data['bio'])
+    
+    if 'profile_picture' in data:
+        update_fields.append("profile_picture = ?")
+        update_values.append(data['profile_picture'])
+    
+    if not update_fields:
+        return jsonify({"error": "No fields to update"}), 400
+    
+    # Add updated timestamp
+    update_fields.append("updated_ts = ?")
+    update_values.append(time.time())
+    
+    # Add professional_id for WHERE clause
+    update_values.append(professional_id)
+    
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        # Check if professional exists
+        cur = conn.execute("SELECT id FROM professionals WHERE id = ?", (professional_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Professional not found"}), 404
+        
+        # Check for email conflicts if email is being updated
+        if 'email' in data:
+            existing_email = conn.execute(
+                "SELECT id FROM professionals WHERE email = ? AND id != ?", 
+                (data['email'], professional_id)
+            ).fetchone()
+            if existing_email:
+                return jsonify({
+                    "error": "Email already exists", 
+                    "details": f"Email '{data['email']}' is already registered by another professional."
+                }), 409
+        
+        # Build and execute update query
+        update_query = f"UPDATE professionals SET {', '.join(update_fields)} WHERE id = ?"
+        conn.execute(update_query, update_values)
+        conn.commit()
+        
+        return jsonify({"ok": True, "message": "Professional profile updated successfully"})
+        
+    except sqlite3.IntegrityError as e:
+        return jsonify({
+            "error": "Database constraint violation", 
+            "details": str(e)
+        }), 409
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.get("/professional/profile")
+def get_professional_profile():
+    """Get current professional's profile information"""
+    professional_id = request.headers.get('X-Professional-ID')
+    if not professional_id:
+        return jsonify({"error": "Professional ID required"}), 400
+    
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("""
+            SELECT id, username, first_name, last_name, email, phone, license_number,
+                   specialization, expertise_areas, location_latitude, location_longitude,
+                   location_address, district, availability_schedule, max_patients_per_day,
+                   consultation_fee, languages, qualifications, experience_years, bio,
+                   profile_picture, is_active, created_ts, updated_ts
+            FROM professionals WHERE id = ?
+        """, (professional_id,))
+        
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Professional not found"}), 404
+        
+        # Parse JSON fields
+        expertise_areas = json.loads(row[8]) if row[8] else []
+        availability_schedule = json.loads(row[13]) if row[13] else {}
+        languages = json.loads(row[16]) if row[16] else []
+        qualifications = json.loads(row[17]) if row[17] else []
+        
+        profile = {
+            "id": row[0],
+            "username": row[1],
+            "first_name": row[2],
+            "last_name": row[3],
+            "email": row[4],
+            "phone": row[5],
+            "license_number": row[6],
+            "specialization": row[7],
+            "expertise_areas": expertise_areas,
+            "location_latitude": row[9],
+            "location_longitude": row[10],
+            "location_address": row[11],
+            "district": row[12],
+            "availability_schedule": availability_schedule,
+            "max_patients_per_day": row[14],
+            "consultation_fee": row[15],
+            "languages": languages,
+            "qualifications": qualifications,
+            "experience_years": row[18],
+            "bio": row[19],
+            "profile_picture": row[20],
+            "is_active": bool(row[21]),
+            "created_ts": row[22],
+            "updated_ts": row[23]
+        }
+        
+        return jsonify(profile)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
 @app.get("/professional/dashboard-stats")
 def get_professional_dashboard_stats():
     """Get dashboard statistics for professional"""
@@ -2444,7 +3906,7 @@ def get_professional_dashboard_stats():
         conn = sqlite3.connect(DB_FILE)
         
         # Get professional ID from session or request
-        professional_id = request.headers.get('X-Professional-ID', '6')  # Default to Jean Ntwari for testing
+        professional_id = request.headers.get('X-Professional-ID', '1')  # Default to Jean Ntwari for testing
         
         # Total sessions
         total_sessions = conn.execute("""
@@ -2487,15 +3949,17 @@ def get_professional_sessions():
     """Get sessions for professional"""
     try:
         limit = request.args.get('limit', 50)
-        professional_id = request.headers.get('X-Professional-ID', '6')  # Default to Jean Ntwari for testing
+        professional_id = request.headers.get('X-Professional-ID', '1')  # Default to Jean Ntwari for testing
         
         conn = sqlite3.connect(DB_FILE)
         
         sessions = conn.execute("""
             SELECT ab.booking_id, ab.conv_id, ab.user_account, ab.user_ip, ab.risk_level, ab.risk_score,
                    ab.detected_indicators, ab.conversation_summary, ab.booking_status, 
-                   ab.scheduled_datetime, ab.session_type, ab.created_ts, ab.updated_ts
+                   ab.scheduled_datetime, ab.session_type, ab.created_ts, ab.updated_ts,
+                   u.fullname, u.email, u.telephone, u.province, u.district
             FROM automated_bookings ab
+            LEFT JOIN users u ON ab.user_account = u.username
             WHERE ab.professional_id = ?
             ORDER BY ab.created_ts DESC
             LIMIT ?
@@ -2505,11 +3969,20 @@ def get_professional_sessions():
         
         sessions_data = []
         for session in sessions:
+            # Format user location
+            user_location = None
+            if session[16] and session[17]:  # province and district
+                user_location = f"{session[17]}, {session[16]}"
+            elif session[16]:  # only province
+                user_location = session[16]
+            elif session[17]:  # only district
+                user_location = session[17]
+            
             sessions_data.append({
                 'bookingId': session[0],
                 'convId': session[1],
                 'userAccount': session[2],
-                'userName': session[2],  # Use account as name for now
+                'userName': session[13] or session[2],  # Use fullname if available, otherwise account
                 'userIp': session[3],
                 'riskLevel': session[4],
                 'riskScore': session[5],
@@ -2519,7 +3992,10 @@ def get_professional_sessions():
                 'scheduledDatetime': session[9],
                 'sessionType': session[10],
                 'createdTs': session[11],
-                'updatedTs': session[12]
+                'updatedTs': session[12],
+                'userPhone': session[15],  # telephone
+                'userEmail': session[14],  # email
+                'userLocation': user_location
             })
         
         return jsonify(sessions_data)
@@ -2528,11 +4004,278 @@ def get_professional_sessions():
         app.logger.error(f"Error getting sessions: {e}")
         return jsonify({'error': 'Failed to get sessions'}), 500
 
+@app.get("/debug/test")
+def debug_test():
+    """Debug endpoint to test if new code is loaded"""
+    return jsonify({
+        'message': 'New code is loaded!',
+        'timestamp': time.time(),
+        'version': '2.0'
+    })
+
+@app.get("/professional/sessions/<booking_id>")
+def get_professional_session_details(booking_id):
+    """Get detailed session information for professional"""
+    try:
+        professional_id = request.headers.get('X-Professional-ID', '1')  # Default to Jean Ntwari for testing
+        
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Get session details with complete user information
+        session = conn.execute("""
+            SELECT ab.booking_id, ab.conv_id, ab.user_account, ab.user_ip, ab.risk_level, ab.risk_score,
+                   ab.detected_indicators, ab.conversation_summary, ab.booking_status, 
+                   ab.scheduled_datetime, ab.session_type, ab.created_ts, ab.updated_ts,
+                   u.fullname, u.email, u.telephone, u.province, u.district, u.created_at
+            FROM automated_bookings ab
+            LEFT JOIN users u ON ab.user_account = u.username
+            WHERE ab.booking_id = ? AND ab.professional_id = ?
+        """, (booking_id, professional_id)).fetchone()
+        
+        if not session:
+            conn.close()
+            return jsonify({'error': 'Session not found'}), 404
+        
+        # Format user location
+        user_location = None
+        if session[17] and session[16]:  # district and province
+            user_location = f"{session[17]}, {session[16]}"
+        elif session[16]:  # only province
+            user_location = session[16]
+        elif session[17]:  # only district
+            user_location = session[17]
+        
+        # Get user's session history
+        user_sessions = conn.execute("""
+            SELECT booking_id, session_type, booking_status, risk_level, risk_score, 
+                   scheduled_datetime, created_ts
+            FROM automated_bookings 
+            WHERE user_account = ? AND professional_id = ?
+            ORDER BY created_ts DESC
+            LIMIT 10
+        """, (session[2], professional_id)).fetchall()
+        
+        # Get user's risk assessment history
+        risk_history = conn.execute("""
+            SELECT risk_level, risk_score, created_ts
+            FROM automated_bookings 
+            WHERE user_account = ? AND professional_id = ?
+            ORDER BY created_ts DESC
+            LIMIT 10
+        """, (session[2], professional_id)).fetchall()
+        
+        # Get conversation history for this session
+        conversation_history = conn.execute("""
+            SELECT role, content, ts
+            FROM messages 
+            WHERE conv_id = ?
+            ORDER BY ts ASC
+        """, (session[1],)).fetchall()
+        
+        # Get session notes if any (table may not exist)
+        session_notes = None
+        try:
+            session_notes = conn.execute("""
+                SELECT notes, treatment_plan, follow_up_required, follow_up_date
+                FROM session_notes 
+                WHERE booking_id = ?
+            """, (booking_id,)).fetchone()
+        except sqlite3.OperationalError:
+            # session_notes table doesn't exist, that's okay
+            pass
+        
+        conn.close()
+        
+        # Format session data
+        session_data = {
+            'bookingId': session[0],
+            'convId': session[1],
+            'userAccount': session[2],
+            'userName': session[13] or session[2],  # Use fullname if available, otherwise account
+            'userIp': session[3],
+            'riskLevel': session[4],
+            'riskScore': session[5],
+            'detectedIndicators': session[6],
+            'conversationSummary': session[7],
+            'bookingStatus': session[8],
+            'scheduledDatetime': session[9],
+            'sessionType': session[10],
+            'createdTs': session[11],
+            'updatedTs': session[12],
+            'userPhone': session[15],  # telephone
+            'userEmail': session[14],  # email
+            'userLocation': user_location,
+            'userFullName': session[13],
+            'userProvince': session[16],
+            'userDistrict': session[17],
+            'userCreatedAt': session[18],
+            'sessions': [
+                {
+                    'bookingId': s[0],
+                    'sessionType': s[1],
+                    'bookingStatus': s[2],
+                    'riskLevel': s[3],
+                    'riskScore': s[4],
+                    'scheduledDatetime': s[5],
+                    'createdTs': s[6]
+                } for s in user_sessions
+            ],
+            'riskAssessments': [
+                {
+                    'riskLevel': r[0],
+                    'riskScore': r[1],
+                    'timestamp': r[2]
+                } for r in risk_history
+            ],
+            'conversationHistory': [
+                {
+                    'sender': c[0],  # role
+                    'content': c[1],
+                    'timestamp': c[2]  # ts
+                } for c in conversation_history
+            ],
+            'sessionNotes': {
+                'notes': session_notes[0] if session_notes else None,
+                'treatmentPlan': session_notes[1] if session_notes else None,
+                'followUpRequired': session_notes[2] if session_notes else False,
+                'followUpDate': session_notes[3] if session_notes else None
+            } if session_notes else None
+        }
+        
+        return jsonify(session_data)
+        
+    except Exception as e:
+        app.logger.error(f"Error getting session details: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        app.logger.error(f"Full error traceback: {error_details}")
+        return jsonify({
+            'error': 'Failed to get session details',
+            'details': str(e),
+            'traceback': error_details
+        }), 500
+
+@app.get("/professional/users/<username>")
+def get_professional_user_details(username: str):
+    """Get detailed user information for professional"""
+    try:
+        professional_id = request.headers.get('X-Professional-ID', '1')  # Default to Jean Ntwari for testing
+        
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Get user details
+        user = conn.execute("""
+            SELECT username, fullname, email, telephone, province, district, created_at
+            FROM users 
+            WHERE username = ?
+        """, (username,)).fetchone()
+        
+        if not user:
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get user's session statistics
+        session_stats = conn.execute("""
+            SELECT COUNT(*) as total_bookings,
+                   MAX(risk_score) as highest_risk_score,
+                   MIN(created_ts) as first_booking_time,
+                   MAX(created_ts) as last_booking_time
+            FROM automated_bookings 
+            WHERE user_account = ? AND professional_id = ?
+        """, (username, professional_id)).fetchone()
+        
+        # Get highest risk level
+        highest_risk = conn.execute("""
+            SELECT risk_level 
+            FROM automated_bookings 
+            WHERE user_account = ? AND professional_id = ? AND risk_score = ?
+            ORDER BY created_ts DESC
+            LIMIT 1
+        """, (username, professional_id, session_stats[1] or 0)).fetchone()
+        
+        # Get user's sessions
+        sessions = conn.execute("""
+            SELECT booking_id, session_type, booking_status, risk_level, risk_score, 
+                   scheduled_datetime, created_ts
+            FROM automated_bookings 
+            WHERE user_account = ? AND professional_id = ?
+            ORDER BY created_ts DESC
+            LIMIT 10
+        """, (username, professional_id)).fetchall()
+        
+        # Get risk assessment history
+        risk_assessments = conn.execute("""
+            SELECT risk_level, risk_score, created_ts
+            FROM automated_bookings 
+            WHERE user_account = ? AND professional_id = ?
+            ORDER BY created_ts DESC
+            LIMIT 10
+        """, (username, professional_id)).fetchall()
+        
+        # Get recent conversations
+        conversations = conn.execute("""
+            SELECT DISTINCT cm.conv_id, cm.content, cm.timestamp
+            FROM conversation_messages cm
+            JOIN automated_bookings ab ON cm.conv_id = ab.conv_id
+            WHERE ab.user_account = ? AND ab.professional_id = ?
+            ORDER BY cm.timestamp DESC
+            LIMIT 5
+        """, (username, professional_id)).fetchall()
+        
+        conn.close()
+        
+        # Format user data
+        user_data = {
+            'userAccount': user[0],
+            'fullName': user[1],
+            'email': user[2],
+            'telephone': user[3],
+            'province': user[4],
+            'district': user[5],
+            'userCreatedAt': user[6],
+            'totalBookings': session_stats[0] or 0,
+            'highestRiskScore': session_stats[1] or 0,
+            'highestRiskLevel': highest_risk[0] if highest_risk else 'unknown',
+            'firstBookingTime': session_stats[2],
+            'lastBookingTime': session_stats[3],
+            'sessions': [
+                {
+                    'bookingId': s[0],
+                    'sessionType': s[1],
+                    'bookingStatus': s[2],
+                    'riskLevel': s[3],
+                    'riskScore': s[4],
+                    'scheduledDatetime': s[5],
+                    'createdTs': s[6]
+                } for s in sessions
+            ],
+            'riskAssessments': [
+                {
+                    'riskLevel': r[0],
+                    'riskScore': r[1],
+                    'timestamp': r[2]
+                } for r in risk_assessments
+            ],
+            'conversations': [
+                {
+                    'convId': c[0],
+                    'preview': c[1][:100] + '...' if len(c[1]) > 100 else c[1],
+                    'timestamp': c[2]
+                } for c in conversations
+            ]
+        }
+        
+        return jsonify(user_data)
+        
+    except Exception as e:
+        app.logger.error(f"Error getting user details: {e}")
+        return jsonify({'error': 'Failed to get user details'}), 500
+
 @app.get("/professional/users")
 def get_professional_users():
     """Get users for professional"""
     try:
-        professional_id = request.headers.get('X-Professional-ID', '6')  # Default to Jean Ntwari for testing
+        professional_id = request.headers.get('X-Professional-ID', '1')  # Default to Jean Ntwari for testing
         conn = sqlite3.connect(DB_FILE)
         
         # Get users who have sessions with this professional
@@ -2568,12 +4311,90 @@ def get_professional_users():
         app.logger.error(f"Error getting users: {e}")
         return jsonify({'error': 'Failed to get users'}), 500
 
+@app.get("/notifications")
+def get_notifications():
+    """Get all notifications for dashboard"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Get notification counts and recent notifications
+        stats = {}
+        
+        # Professional notifications count
+        prof_notifications = conn.execute("""
+            SELECT COUNT(*) FROM professional_notifications 
+            WHERE is_read = 0
+        """).fetchone()[0]
+        
+        # Recent bookings count (last 24 hours)
+        recent_bookings = conn.execute("""
+            SELECT COUNT(*) FROM automated_bookings 
+            WHERE created_ts > ?
+        """, (time.time() - 86400,)).fetchone()[0]
+        
+        # Critical risk assessments count
+        critical_risks = conn.execute("""
+            SELECT COUNT(*) FROM risk_assessments 
+            WHERE risk_level = 'critical' AND assessment_timestamp > ?
+        """, (time.time() - 86400,)).fetchone()[0]
+        
+        # New users count (last 24 hours)
+        new_users = conn.execute("""
+            SELECT COUNT(*) FROM users 
+            WHERE created_ts > ?
+        """, (time.time() - 86400,)).fetchone()[0]
+        
+        # Recent notifications (last 10)
+        recent_notifications = conn.execute("""
+            SELECT 
+                pn.id,
+                pn.title,
+                pn.message,
+                pn.notification_type,
+                pn.is_read,
+                pn.created_ts,
+                (p.first_name || ' ' || p.last_name) as professional_name
+            FROM professional_notifications pn
+            LEFT JOIN professionals p ON pn.professional_id = p.id
+            ORDER BY pn.created_ts DESC 
+            LIMIT 10
+        """).fetchall()
+        
+        notifications_data = []
+        for notification in recent_notifications:
+            time_ago = get_time_ago(notification[5])
+            notifications_data.append({
+                'id': notification[0],
+                'title': notification[1],
+                'message': notification[2],
+                'type': notification[3],
+                'isRead': bool(notification[4]),
+                'createdAt': notification[5],
+                'timeAgo': time_ago,
+                'professionalName': notification[6] or 'System'
+            })
+        
+        stats = {
+            'totalNotifications': prof_notifications,
+            'recentBookings': recent_bookings,
+            'criticalRisks': critical_risks,
+            'newUsers': new_users,
+            'notifications': notifications_data
+        }
+        
+        conn.close()
+        return jsonify(stats)
+        
+    except Exception as e:
+        app.logger.error(f"Error getting notifications: {e}")
+        return jsonify({'error': 'Failed to get notifications'}), 500
+
 @app.get("/professional/notifications")
 def get_professional_notifications():
     """Get notifications for professional"""
     try:
         limit = request.args.get('limit', 50)
-        professional_id = request.headers.get('X-Professional-ID', '6')  # Default to Jean Ntwari for testing
+        professional_id = request.headers.get('X-Professional-ID', '1')  # Default to Jean Ntwari for testing
         
         conn = sqlite3.connect(DB_FILE)
         
@@ -2604,47 +4425,6 @@ def get_professional_notifications():
         app.logger.error(f"Error getting notifications: {e}")
         return jsonify({'error': 'Failed to get notifications'}), 500
 
-@app.get("/professional/sessions/<booking_id>")
-def get_session_details(booking_id):
-    """Get detailed session information"""
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        
-        session = conn.execute("""
-            SELECT booking_id, conv_id, user_account, user_ip, risk_level, risk_score,
-                   detected_indicators, conversation_summary, booking_status, 
-                   scheduled_datetime, session_type, created_ts, updated_ts
-            FROM automated_bookings 
-            WHERE booking_id = ?
-        """, (booking_id,)).fetchone()
-        
-        conn.close()
-        
-        if not session:
-            return jsonify({'error': 'Session not found'}), 404
-        
-        session_data = {
-            'bookingId': session[0],
-            'convId': session[1],
-            'userAccount': session[2],
-            'userName': session[2],  # Use account as name for now
-            'userIp': session[3],
-            'riskLevel': session[4],
-            'riskScore': session[5],
-            'detectedIndicators': session[6],
-            'conversationSummary': session[7],
-            'bookingStatus': session[8],
-            'scheduledDatetime': session[9],
-            'sessionType': session[10],
-            'createdTs': session[11],
-            'updatedTs': session[12]
-        }
-        
-        return jsonify(session_data)
-        
-    except Exception as e:
-        app.logger.error(f"Error getting session details: {e}")
-        return jsonify({'error': 'Failed to get session details'}), 500
 
 @app.get("/professional/users/<username>")
 def get_user_profile(username):
@@ -2711,6 +4491,136 @@ def get_user_profile(username):
         app.logger.error(f"Error getting user profile: {e}")
         return jsonify({'error': 'Failed to get user profile'}), 500
 
+@app.get("/professional/booked-users")
+def get_all_booked_users():
+    """Get comprehensive information for all booked users"""
+    try:
+        professional_id = request.headers.get('X-Professional-ID', '6')
+        
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Get all booked users with comprehensive information
+        booked_users = conn.execute("""
+            SELECT DISTINCT 
+                ab.user_account,
+                ab.user_ip,
+                u.fullname,
+                u.email,
+                u.telephone,
+                u.province,
+                u.district,
+                u.created_ts as user_created_at,
+                COUNT(ab.booking_id) as total_bookings,
+                MAX(ab.risk_level) as highest_risk_level,
+                MAX(ab.risk_score) as highest_risk_score,
+                MAX(ab.created_ts) as last_booking_time,
+                MIN(ab.created_ts) as first_booking_time
+            FROM automated_bookings ab
+            LEFT JOIN users u ON ab.user_account = u.username
+            WHERE ab.professional_id = ?
+            GROUP BY ab.user_account, ab.user_ip, u.fullname, u.email, u.telephone, u.province, u.district, u.created_ts
+            ORDER BY last_booking_time DESC
+        """, (professional_id,)).fetchall()
+        
+        # Get detailed session information for each user
+        users_data = []
+        for user in booked_users:
+            user_account = user[0]
+            
+            # Get all sessions for this user
+            sessions = conn.execute("""
+                SELECT booking_id, conv_id, risk_level, risk_score, detected_indicators,
+                       conversation_summary, booking_status, scheduled_datetime, session_type,
+                       created_ts, updated_ts
+                FROM automated_bookings 
+                WHERE user_account = ? AND professional_id = ?
+                ORDER BY created_ts DESC
+            """, (user_account, professional_id)).fetchall()
+            
+            # Get conversation history
+            conversations = conn.execute("""
+                SELECT conv_id, preview, ts
+                FROM conversations 
+                WHERE owner_key = ?
+                ORDER BY ts DESC
+                LIMIT 5
+            """, (user_account,)).fetchall()
+            
+            # Get risk assessment history
+            risk_assessments = conn.execute("""
+                SELECT risk_level, risk_score, detected_indicators, created_ts
+                FROM risk_assessments 
+                WHERE user_account = ?
+                ORDER BY created_ts DESC
+                LIMIT 10
+            """, (user_account,)).fetchall()
+            
+            user_data = {
+                'userAccount': user[0],
+                'userIp': user[1],
+                'fullName': user[2] or 'Not provided',
+                'email': user[3] or 'Not provided',
+                'telephone': user[4] or 'Not provided',
+                'province': user[5] or 'Not provided',
+                'district': user[6] or 'Not provided',
+                'userCreatedAt': user[7],
+                'totalBookings': user[8],
+                'highestRiskLevel': user[9],
+                'highestRiskScore': user[10],
+                'lastBookingTime': user[11],
+                'firstBookingTime': user[12],
+                'sessions': [],
+                'conversations': [],
+                'riskAssessments': []
+            }
+            
+            # Add session details
+            for session in sessions:
+                user_data['sessions'].append({
+                    'bookingId': session[0],
+                    'convId': session[1],
+                    'riskLevel': session[2],
+                    'riskScore': session[3],
+                    'detectedIndicators': session[4],
+                    'conversationSummary': session[5],
+                    'bookingStatus': session[6],
+                    'scheduledDatetime': session[7],
+                    'sessionType': session[8],
+                    'createdTs': session[9],
+                    'updatedTs': session[10]
+                })
+            
+            # Add conversation details
+            for conv in conversations:
+                user_data['conversations'].append({
+                    'convId': conv[0],
+                    'preview': conv[1],
+                    'timestamp': conv[2]
+                })
+            
+            # Add risk assessment details
+            for risk in risk_assessments:
+                user_data['riskAssessments'].append({
+                    'riskLevel': risk[0],
+                    'riskScore': risk[1],
+                    'detectedIndicators': risk[2],
+                    'timestamp': risk[3]
+                })
+            
+            users_data.append(user_data)
+        
+        conn.close()
+        
+        return jsonify({
+            'users': users_data,
+            'totalUsers': len(users_data),
+            'professionalId': professional_id
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error getting booked users: {e}")
+        return jsonify({'error': 'Failed to get booked users'}), 500
+
 @app.post("/professional/sessions/<booking_id>/accept")
 def accept_session(booking_id):
     """Accept a session"""
@@ -2731,6 +4641,26 @@ def accept_session(booking_id):
     except Exception as e:
         app.logger.error(f"Error accepting session: {e}")
         return jsonify({'error': 'Failed to accept session'}), 500
+
+@app.post("/professional/sessions/<booking_id>/decline")
+def decline_session(booking_id):
+    """Decline a session"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute(
+            """
+            UPDATE automated_bookings 
+            SET booking_status = 'declined', updated_ts = ?
+            WHERE booking_id = ?
+            """,
+            (time.time(), booking_id)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Session declined'})
+    except Exception as e:
+        app.logger.error(f"Error declining session: {e}")
+        return jsonify({'error': 'Failed to decline session'}), 500
 
 @app.post("/professional/notifications/mark-all-read")
 def mark_all_notifications_read():
@@ -2831,6 +4761,203 @@ def generate_professional_report():
     except Exception as e:
         app.logger.error(f"Error generating report: {e}")
         return jsonify({'error': 'Failed to generate report'}), 500
+
+
+# --- User intake for professionals ---
+@app.post("/professional/users/intake")
+def professional_user_intake():
+    """Create or update user profile based on professional intake form."""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip()
+    full_name = (data.get('full_name') or '').strip()
+    phone = (data.get('phone') or '').strip()
+    province = (data.get('province') or '').strip()
+    district = (data.get('district') or '').strip()
+    password = data.get('password') or ''
+    confirm_password = data.get('confirm_password') or ''
+
+    if not username and not email:
+        return jsonify({"error": "username or email is required"}), 400
+
+    if password and password != confirm_password:
+        return jsonify({"error": "passwords do not match"}), 400
+
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        cur = conn.execute("SELECT username FROM users WHERE username = ? OR email = ?", (username, email))
+        row = cur.fetchone()
+        if row:
+            # Update existing user
+            if password:
+                pw_hash = generate_password_hash(password)
+                conn.execute(
+                    "UPDATE users SET email = ?, fullname = ?, phone = ?, province = ?, district = ?, password_hash = ? WHERE username = ?",
+                    (email, full_name, phone, province, district, pw_hash, row[0])
+                )
+            else:
+                conn.execute(
+                    "UPDATE users SET email = ?, fullname = ?, phone = ?, province = ?, district = ? WHERE username = ?",
+                    (email, full_name, phone, province, district, row[0])
+                )
+            conn.commit()
+            return jsonify({"ok": True, "updated": True, "username": row[0]})
+        else:
+            # Create new user
+            if not username or not email:
+                return jsonify({"error": "username and email are required for new users"}), 400
+            pw_hash = generate_password_hash(password) if password else generate_password_hash(uuid.uuid4().hex[:10])
+            conn.execute(
+                "INSERT INTO users (username, email, fullname, phone, province, district, password_hash, created_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (username, email, full_name, phone, province, district, pw_hash, time.time())
+            )
+            conn.commit()
+            return jsonify({"ok": True, "created": True, "username": username})
+    except Exception as e:
+        app.logger.error(f"User intake failed: {e}")
+        return jsonify({"error": "Failed to save user"}), 500
+    finally:
+        conn.close()
+
+
+# --- SMS Testing and Management Endpoints ---
+@app.post("/admin/sms/test")
+def test_sms_service():
+    """Test SMS service connection and send test message"""
+    try:
+        sms_service = get_sms_service()
+        if not sms_service:
+            return jsonify({'error': 'SMS service not initialized'}), 500
+        
+        data = request.get_json()
+        test_phone = data.get('phone', '+250000000000')
+        test_message = data.get('message', 'AIMHSA SMS Test - Service is working correctly')
+        
+        result = sms_service.send_sms(
+            sender_id="AIMHSA",
+            phone_number=test_phone,
+            message=test_message
+        )
+        
+        return jsonify({
+            'success': result.get('success', False),
+            'message': 'SMS test completed',
+            'result': result
+        })
+        
+    except Exception as e:
+        app.logger.error(f"SMS test failed: {e}")
+        return jsonify({'error': f'SMS test failed: {str(e)}'}), 500
+
+@app.post("/admin/sms/send-booking-notification")
+def send_booking_sms():
+    """Manually send booking notification SMS"""
+    try:
+        data = request.get_json()
+        booking_id = data.get('booking_id')
+        
+        if not booking_id:
+            return jsonify({'error': 'Booking ID required'}), 400
+        
+        # Get booking details
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            booking = conn.execute("""
+                SELECT ab.*, p.first_name, p.last_name, p.specialization, p.phone as prof_phone,
+                       u.fullname, u.telephone as user_phone
+                FROM automated_bookings ab
+                LEFT JOIN professionals p ON ab.professional_id = p.id
+                LEFT JOIN users u ON ab.user_account = u.username
+                WHERE ab.booking_id = ?
+            """, (booking_id,)).fetchone()
+            
+            if not booking:
+                return jsonify({'error': 'Booking not found'}), 404
+            
+            # Prepare data for SMS
+            professional_data = {
+                'first_name': booking[12],
+                'last_name': booking[13],
+                'specialization': booking[14],
+                'phone': booking[15]
+            }
+            
+            user_data = {
+                'fullname': booking[16],
+                'telephone': booking[17]
+            }
+            
+            booking_data = {
+                'booking_id': booking[1],
+                'scheduled_time': booking[10],
+                'session_type': booking[11],
+                'risk_level': booking[6]
+            }
+            
+            # Send SMS notifications
+            sms_service = get_sms_service()
+            results = {}
+            
+            if sms_service:
+                # Send to user
+                if user_data.get('telephone'):
+                    user_result = sms_service.send_booking_notification(
+                        user_data, professional_data, booking_data
+                    )
+                    results['user_sms'] = user_result
+                
+                # Send to professional
+                if professional_data.get('phone'):
+                    prof_result = sms_service.send_professional_notification(
+                        professional_data, user_data, booking_data
+                    )
+                    results['professional_sms'] = prof_result
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'SMS notifications sent',
+                    'results': results
+                })
+            else:
+                return jsonify({'error': 'SMS service not available'}), 500
+                
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        app.logger.error(f"Failed to send booking SMS: {e}")
+        return jsonify({'error': f'Failed to send SMS: {str(e)}'}), 500
+
+@app.get("/admin/sms/status")
+def get_sms_status():
+    """Get SMS service status and configuration"""
+    try:
+        sms_service = get_sms_service()
+        
+        if not sms_service:
+            return jsonify({
+                'status': 'not_initialized',
+                'message': 'SMS service not initialized'
+            })
+        
+        # Test connection
+        connection_test = sms_service.test_connection()
+        
+        return jsonify({
+            'status': 'initialized',
+            'api_id': HDEV_SMS_API_ID,
+            'api_key_masked': HDEV_SMS_API_KEY[:10] + '...' if HDEV_SMS_API_KEY else 'Not set',
+            'connection_test': connection_test,
+            'message': 'SMS service is ready' if connection_test else 'SMS service initialized but connection test failed'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Failed to get SMS status: {e}")
+        return jsonify({'error': f'Failed to get SMS status: {str(e)}'}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5057, debug=True)

@@ -14,19 +14,107 @@
                 <p class="subtitle">Mental Health Companion for Rwanda</p>
             </div>
             
-            <form class="auth-form" id="registerForm">
+            <form class="auth-form" id="registerForm" novalidate>
                 <div class="form-group">
-                    <label for="regUsername">Username</label>
-                    <input type="text" id="regUsername" name="regUsername" required />
+                    <label for="regUsername">Username *</label>
+                    <input type="text" id="regUsername" name="regUsername" 
+                           placeholder="Enter your username" 
+                           minlength="3" maxlength="50" 
+                           pattern="^[a-zA-Z0-9_]+$" 
+                           title="Username can only contain letters, numbers, and underscores"
+                           required />
+                    <div class="field-error" id="usernameError"></div>
+                    <div class="field-help">3-50 characters, letters, numbers, and underscores only</div>
                 </div>
+                
                 <div class="form-group">
-                    <label for="regPassword">Password</label>
-                    <input type="password" id="regPassword" name="regPassword" required />
+                    <label for="regEmail">Email Address *</label>
+                    <input type="email" id="regEmail" name="regEmail" 
+                           placeholder="Enter your email address" 
+                           maxlength="100"
+                           title="Enter a valid email address"
+                           required />
+                    <div class="field-error" id="emailError"></div>
+                    <div class="field-help">We'll use this to contact you about your account</div>
                 </div>
+                
                 <div class="form-group">
-                    <label for="regConfirmPassword">Confirm Password</label>
-                    <input type="password" id="regConfirmPassword" name="regConfirmPassword" required />
+                    <label for="regFullname">Full Name *</label>
+                    <input type="text" id="regFullname" name="regFullname" 
+                           placeholder="Enter your full name" 
+                           minlength="2" maxlength="100"
+                           pattern="^[a-zA-Z\s\-'\.]+$"
+                           title="Enter your full name (letters, spaces, hyphens, apostrophes, and periods only)"
+                           required />
+                    <div class="field-error" id="fullnameError"></div>
+                    <div class="field-help">Enter your complete name as it appears on official documents</div>
                 </div>
+                
+                <div class="form-group">
+                    <label for="regTelephone">Phone Number *</label>
+                    <input type="tel" id="regTelephone" name="regTelephone" 
+                           placeholder="+250XXXXXXXXX or 07XXXXXXXX" 
+                           pattern="^(\+250|0)[0-9]{9}$"
+                           title="Enter a valid Rwanda phone number"
+                           required />
+                    <div class="field-error" id="telephoneError"></div>
+                    <div class="field-help">Rwanda format: +250XXXXXXXXX or 07XXXXXXXX</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="regProvince">Province *</label>
+                    <select id="regProvince" name="regProvince" required>
+                        <option value="">Select Province</option>
+                        <option value="Kigali">Kigali</option>
+                        <option value="Eastern">Eastern</option>
+                        <option value="Northern">Northern</option>
+                        <option value="Southern">Southern</option>
+                        <option value="Western">Western</option>
+                    </select>
+                    <div class="field-error" id="provinceError"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="regDistrict">District *</label>
+                    <select id="regDistrict" name="regDistrict" required>
+                        <option value="">Select District</option>
+                    </select>
+                    <div class="field-error" id="districtError"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="regPassword">Password *</label>
+                    <input type="password" id="regPassword" name="regPassword" 
+                           placeholder="Create a strong password" 
+                           minlength="8" maxlength="128"
+                           title="Password must be at least 8 characters long"
+                           required />
+                    <div class="field-error" id="passwordError"></div>
+                    <div class="field-help">At least 8 characters, include letters and numbers</div>
+                    <div class="password-strength-indicator">
+                        <div class="password-strength-bar"></div>
+                    </div>
+                    <div class="password-strength"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="regConfirmPassword">Confirm Password *</label>
+                    <input type="password" id="regConfirmPassword" name="regConfirmPassword" 
+                           placeholder="Confirm your password" 
+                           required />
+                    <div class="field-error" id="confirmPasswordError"></div>
+                    <div class="field-help">Must match the password above</div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="agreeTerms" name="agreeTerms" required />
+                        <span class="checkmark"></span>
+                        I agree to the <a href="#" target="_blank">Terms of Service</a> and <a href="#" target="_blank">Privacy Policy</a> *
+                    </label>
+                    <div class="field-error" id="termsError"></div>
+                </div>
+                
                 <button type="submit" class="auth-btn" id="registerBtn">Create Account</button>
             </form>
             

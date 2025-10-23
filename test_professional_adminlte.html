@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIMHSA Professional Dashboard - AdminLTE 4 Test</title>
+    
+    <!-- AdminLTE 4 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Font: Source Sans Pro -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    
+    <!-- Custom CSS (preserves existing styles) -->
+    <link rel="stylesheet" href="chatbot/professional.css">
+</head>
+<body>
+    <div class="professional-container">
+        <header class="professional-header">
+            <div class="header-content">
+                <h1>Professional Dashboard</h1>
+                <p>Manage your therapy sessions and notifications</p>
+            </div>
+            <div class="user-info">
+                <div class="user-details">
+                    <span id="professionalName">Dr. Marie Mukamana</span>
+                    <span class="user-role">Psychiatrist</span>
+                </div>
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+        
+        <main class="professional-content">
+            <!-- Mobile Menu Toggle -->
+            <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <!-- Dashboard Stats -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="totalSessions">15</div>
+                            <div class="stat-label">Total Sessions</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔔</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="unreadNotifications">3</div>
+                            <div class="stat-label">Unread Notifications</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏰</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="upcomingToday">2</div>
+                            <div class="stat-label">Today's Sessions</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="highRiskSessions">1</div>
+                            <div class="stat-label">High Risk Cases</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Actions -->
+            <section class="quick-actions-section">
+                <div class="section-header">
+                    <h2>Quick Actions</h2>
+                </div>
+                <div class="quick-actions-grid">
+                    <button class="action-btn" onclick="testToast()">
+                        <div class="action-icon">🔔</div>
+                        <div class="action-text">Test Toast</div>
+                    </button>
+                    <button class="action-btn" onclick="testModal()">
+                        <div class="action-icon">📋</div>
+                        <div class="action-text">Test Modal</div>
+                    </button>
+                    <button class="action-btn" onclick="testLoading()">
+                        <div class="action-icon">⏳</div>
+                        <div class="action-text">Test Loading</div>
+                    </button>
+                    <button class="action-btn" onclick="testAnimation()">
+                        <div class="action-icon">✨</div>
+                        <div class="action-text">Test Animation</div>
+                    </button>
+                </div>
+            </section>
+            
+            <!-- Test Section -->
+            <section class="booked-users-section">
+                <div class="section-header">
+                    <h2>AdminLTE 4 Integration Test</h2>
+                    <div class="header-actions">
+                        <button class="btn-secondary" onclick="testDataTable()">Test DataTable</button>
+                        <button class="btn-secondary" onclick="testRefresh()">Test Refresh</button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Integration Status</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>AdminLTE 4 Components</h5>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> CSS Framework
+                                    </li>
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Font Awesome Icons
+                                    </li>
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Bootstrap 4 Components
+                                    </li>
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Professional Theme
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Enhanced Features</h5>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Mobile Responsive
+                                    </li>
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Toast Notifications
+                                    </li>
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Loading States
+                                    </li>
+                                    <li class="list-group-item">
+                                        <i class="fas fa-check text-success"></i> Smooth Animations
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Test Table -->
+            <section class="sessions-section">
+                <div class="section-header">
+                    <h2>Test DataTable</h2>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <table id="testTable" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Patient</th>
+                                    <th>Session Type</th>
+                                    <th>Risk Level</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>John Doe</td>
+                                    <td>Emergency</td>
+                                    <td><span class="badge badge-danger">High</span></td>
+                                    <td>2024-01-15</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">View</button>
+                                        <button class="btn btn-sm btn-secondary">Edit</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>2</td>
+                                    <td>Jane Smith</td>
+                                    <td>Routine</td>
+                                    <td><span class="badge badge-success">Low</span></td>
+                                    <td>2024-01-16</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">View</button>
+                                        <button class="btn btn-sm btn-secondary">Edit</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>3</td>
+                                    <td>Bob Johnson</td>
+                                    <td>Follow-up</td>
+                                    <td><span class="badge badge-warning">Medium</span></td>
+                                    <td>2024-01-17</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">View</button>
+                                        <button class="btn btn-sm btn-secondary">Edit</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Test Modal -->
+    <div class="modal fade" id="testModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Test Modal</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>AdminLTE 4 modal is working correctly in the professional dashboard!</p>
+                    <div class="form-group">
+                        <label for="testInput">Test Input:</label>
+                        <input type="text" class="form-control" id="testInput" placeholder="Enter something...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- AdminLTE 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+    
+    <script>
+        // Test functions
+        function testToast() {
+            if (typeof $ !== 'undefined' && $.fn.toast) {
+                const toastHtml = `
+                    <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <strong class="mr-auto">AIMHSA Professional</strong>
+                            <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="toast-body">
+                            Professional dashboard toast notification is working!
+                        </div>
+                    </div>
+                `;
+                
+                let toastContainer = document.querySelector('.toast-container');
+                if (!toastContainer) {
+                    toastContainer = document.createElement('div');
+                    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                    toastContainer.style.zIndex = '9999';
+                    document.body.appendChild(toastContainer);
+                }
+                
+                toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+                const toastElement = toastContainer.lastElementChild;
+                $(toastElement).toast({
+                    autohide: true,
+                    delay: 3000
+                });
+                $(toastElement).toast('show');
+                
+                $(toastElement).on('hidden.bs.toast', function() {
+                    $(this).remove();
+                });
+            } else {
+                alert('AdminLTE 4 not loaded properly');
+            }
+        }
+        
+        function testModal() {
+            if (typeof $ !== 'undefined' && $.fn.modal) {
+                $('#testModal').modal('show');
+            } else {
+                alert('Bootstrap 4 not loaded properly');
+            }
+        }
+        
+        function testLoading() {
+            const btn = event.target.closest('.action-btn');
+            btn.classList.add('loading');
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                testToast();
+            }, 2000);
+        }
+        
+        function testAnimation() {
+            const cards = document.querySelectorAll('.stat-card');
+            cards.forEach((card, index) => {
+                card.classList.remove('fade-in');
+                setTimeout(() => {
+                    card.classList.add('fade-in');
+                }, index * 100);
+            });
+        }
+        
+        function testDataTable() {
+            if (typeof $ !== 'undefined' && $.fn.DataTable) {
+                if (!$.fn.DataTable.isDataTable('#testTable')) {
+                    $('#testTable').DataTable({
+                        responsive: true,
+                        pageLength: 5,
+                        order: [[0, 'desc']],
+                        columnDefs: [
+                            { targets: [-1], orderable: false }
+                        ]
+                    });
+                    testToast();
+                } else {
+                    testToast();
+                }
+            } else {
+                alert('DataTables not available');
+            }
+        }
+        
+        function testRefresh() {
+            const refreshBtn = event.target;
+            refreshBtn.classList.add('loading');
+            refreshBtn.disabled = true;
+            
+            setTimeout(() => {
+                refreshBtn.classList.remove('loading');
+                refreshBtn.disabled = false;
+                testToast();
+            }, 2000);
+        }
+        
+        // Initialize mobile menu
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileToggle = document.getElementById('mobileMenuToggle');
+            const professionalHeader = document.querySelector('.professional-header');
+            
+            if (mobileToggle && professionalHeader) {
+                mobileToggle.addEventListener('click', function() {
+                    professionalHeader.classList.toggle('mobile-open');
+                });
+            }
+            
+            // Initialize tooltips
+            if (typeof $ !== 'undefined' && $.fn.tooltip) {
+                $('[data-toggle="tooltip"]').tooltip();
+            }
+            
+            // Add animations to cards
+            const cards = document.querySelectorAll('.stat-card, .action-btn');
+            cards.forEach((card, index) => {
+                card.classList.add('fade-in');
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+        });
+    </script>
+</body>
+</html>
+

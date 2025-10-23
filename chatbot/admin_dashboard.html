@@ -3,58 +3,520 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIMHSA Admin Dashboard</title>
+    <title>AIMHSA Advanced Admin Dashboard</title>
+    
+    <!-- AdminLTE 4 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Font: Source Sans Pro -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap4.min.css">
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <!-- FullCalendar CSS removed - not needed for admin dashboard -->
+    
+    <!-- Custom CSS (preserves existing styles) -->
     <link rel="stylesheet" href="admin.css">
+    
+    <!-- Additional CSS for fixes -->
+    <style>
+        .brand-image, .user-panel .image > div {
+            border-radius: 50%;
+        }
+        
+        .collapsed-card .card-body {
+            display: none;
+        }
+        
+        .card.collapsed-card .card-header::after {
+            content: " (Collapsed)";
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .loading-spinner {
+            text-align: center;
+            color: white;
+        }
+        
+        .loading-spinner i {
+            margin-bottom: 10px;
+        }
+        
+        /* Form input fixes */
+        .form-control {
+            background-color: #fff !important;
+            border: 1px solid #ced4da !important;
+            color: #495057 !important;
+        }
+        .form-control:focus {
+            border-color: #80bdff !important;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+        }
+        .form-control.is-invalid {
+            border-color: #dc3545 !important;
+        }
+        .form-check-input {
+            margin-top: 0.25rem !important;
+        }
+        .modal-body .form-control {
+            background-color: #fff !important;
+            color: #495057 !important;
+        }
+        .modal-body .form-control:disabled {
+            background-color: #e9ecef !important;
+            color: #6c757d !important;
+        }
+    </style>
 </head>
-<body>
-    <div class="admin-container">
-        <nav class="admin-nav">
-            <div class="nav-header">
-                <h1>AIMHSA Admin</h1>
-                <p>Therapy Booking System</p>
-            </div>
-            <ul class="nav-menu">
-                <li><a href="#professionals" class="nav-link active">Manage Professionals</a></li>
-                <li><a href="#bookings" class="nav-link">View Bookings</a></li>
-                <li><a href="#risk-monitor" class="nav-link">Risk Monitor</a></li>
-                <li><a href="#analytics" class="nav-link">Analytics</a></li>
+<body class="hold-transition sidebar-mini layout-fixed">
+    <div class="wrapper">
+        <!-- Navbar -->
+        <nav class="main-header navbar navbar-expand navbar-dark navbar-primary">
+            <!-- Left navbar links -->
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="pushmenu" href="#" role="button">
+                        <i class="fas fa-bars"></i>
+                    </a>
+                </li>
+                <li class="nav-item d-none d-sm-inline-block">
+                    <a href="#" class="nav-link">Dashboard</a>
+                </li>
+                <li class="nav-item d-none d-sm-inline-block">
+                    <a href="#" class="nav-link">Reports</a>
+                </li>
             </ul>
-            <div class="nav-footer">
-                <button id="logoutBtn" class="logout-btn">Logout</button>
+
+            <!-- Right navbar links -->
+            <ul class="navbar-nav ml-auto">
+                <!-- Refresh Button -->
+                <li class="nav-item">
+                    <a class="nav-link" href="#" id="refreshAllBtn" title="Refresh All Data">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                </li>
+                <!-- Notifications Dropdown Menu -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link" data-toggle="dropdown" href="#">
+                        <i class="far fa-bell"></i>
+                        <span class="badge badge-warning navbar-badge" id="notificationBadge">15</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right notifications-menu">
+                        <span class="dropdown-item dropdown-header">15 Notifications</span>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item">
+                            <i class="fas fa-envelope mr-2"></i> 4 new messages
+                            <span class="float-right text-muted text-sm">3 mins</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item">
+                            <i class="fas fa-users mr-2"></i> 8 friend requests
+                            <span class="float-right text-muted text-sm">12 hours</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item">
+                            <i class="fas fa-file mr-2"></i> 3 new reports
+                            <span class="float-right text-muted text-sm">2 days</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item dropdown-footer">See All Notifications</a>
+                    </div>
+                </li>
+                
+                <!-- User Account Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link" data-toggle="dropdown" href="#">
+                        <i class="far fa-user"></i>
+                        <span class="ml-2">Admin User</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+                        <a href="#" class="dropdown-item">
+                            <i class="fas fa-user mr-2"></i> Profile
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <i class="fas fa-cog mr-2"></i> Settings
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                        </a>
             </div>
+                </li>
+            </ul>
         </nav>
         
-        <main class="admin-content">
-            <!-- Professional Management Section -->
-            <section id="professionals" class="admin-section active">
-                <div class="section-header">
-                    <h2>Professional Management</h2>
-                    <div class="section-controls">
-                        <button id="addProfessionalBtn" class="btn-primary">Add New Professional</button>
-                        <div class="search-box">
-                            <input type="text" id="professionalSearch" placeholder="Search professionals...">
+        <!-- Main Sidebar Container -->
+        <aside class="main-sidebar sidebar-dark-primary elevation-4">
+            <!-- Brand Logo -->
+            <a href="#" class="brand-link">
+                <div class="brand-image img-circle elevation-3" style="opacity: .8; width: 33px; height: 33px; background: #007bff; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">AI</div>
+                <span class="brand-text font-weight-light">AIMHSA Admin</span>
+            </a>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Sidebar user panel -->
+                <div class="user-panel mt-3 pb-3 mb-3 d-flex">
+                    <div class="image">
+                        <div class="img-circle elevation-2" style="width: 40px; height: 40px; background: #007bff; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px;">AD</div>
+                    </div>
+                    <div class="info">
+                        <a href="#" class="d-block">Admin User</a>
+                        <small class="text-muted">System Administrator</small>
+                    </div>
+                </div>
+
+                <!-- Sidebar Menu -->
+                <nav class="mt-2">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                        <li class="nav-item">
+                            <a href="#dashboard" class="nav-link active" data-section="dashboard">
+                                <i class="nav-icon fas fa-tachometer-alt"></i>
+                                <p>Dashboard</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#professionals" class="nav-link" data-section="professionals">
+                                <i class="nav-icon fas fa-user-md"></i>
+                                <p>Professionals</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#bookings" class="nav-link" data-section="bookings">
+                                <i class="nav-icon fas fa-calendar-check"></i>
+                                <p>Bookings</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#risk-monitor" class="nav-link" data-section="risk-monitor">
+                                <i class="nav-icon fas fa-exclamation-triangle"></i>
+                                <p>Risk Monitor</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#analytics" class="nav-link" data-section="analytics">
+                                <i class="nav-icon fas fa-chart-bar"></i>
+                                <p>Analytics</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#rag-status" class="nav-link" data-section="rag-status">
+                                <i class="nav-icon fas fa-brain"></i>
+                                <p>RAG Status</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                        </li>
+                        <li class="nav-item">
+                            <a href="#reports" class="nav-link" data-section="reports">
+                                <i class="nav-icon fas fa-file-alt"></i>
+                                <p>Reports</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#settings" class="nav-link" data-section="settings">
+                                <i class="nav-icon fas fa-cog"></i>
+                                <p>Settings</p>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Content Wrapper -->
+        <div class="content-wrapper">
+            <!-- Content Header -->
+            <div class="content-header">
+                <div class="container-fluid">
+                    <div class="row mb-2">
+                        <div class="col-sm-6">
+                            <h1 class="m-0" id="pageTitle">Dashboard</h1>
+                        </div>
+                        <div class="col-sm-6">
+                            <ol class="breadcrumb float-sm-right">
+                                <li class="breadcrumb-item"><a href="#">Home</a></li>
+                                <li class="breadcrumb-item active" id="breadcrumbActive">Dashboard</li>
+                            </ol>
                         </div>
                     </div>
                 </div>
-                
-                <div class="professionals-grid" id="professionalsGrid">
-                    <!-- Professional cards will be loaded here -->
+            </div>
+
+            <!-- Main content -->
+            <section class="content">
+                <div class="container-fluid">
+
+                    <!-- Dashboard Section -->
+                    <div id="dashboard-section" class="content-section">
+                        <!-- Info boxes -->
+                        <div class="row">
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-info">
+                                    <div class="inner">
+                                        <h3 id="kpiActiveBookings">0</h3>
+                                        <p>Active Bookings</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-calendar-check"></i>
+                                    </div>
+                                    <a href="#bookings" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-danger">
+                                    <div class="inner">
+                                        <h3 id="kpiCritical">0</h3>
+                                        <p>Critical Risks</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                    <a href="#risk-monitor" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-success">
+                                    <div class="inner">
+                                        <h3 id="kpiProfessionals">0</h3>
+                                        <p>Professionals</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-user-md"></i>
+                                    </div>
+                                    <a href="#professionals" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-warning">
+                                    <div class="inner">
+                                        <h3 id="kpiAssessments">0</h3>
+                                        <p>Assessments Today</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <a href="#analytics" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Charts Row -->
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Risk Assessment Trends</h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-tool" data-card-widget="remove">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="riskTrendChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Risk Distribution</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="riskDistributionChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Recent Bookings</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>User</th>
+                                                        <th>Risk Level</th>
+                                                        <th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="recentBookingsTable">
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">System Status</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-success"><i class="fas fa-server"></i></span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">API Status</span>
+                                                        <span class="info-box-number">Online</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-info"><i class="fas fa-database"></i></span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">Database</span>
+                                                        <span class="info-box-number">Healthy</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-warning"><i class="fas fa-brain"></i></span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">AI Model</span>
+                                                        <span class="info-box-number">Active</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-primary"><i class="fas fa-sms"></i></span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">SMS Service</span>
+                                                        <span class="info-box-number">Ready</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                 </div>
-            </section>
+                </div>
+                </div>
+                </div>
+                        </div>
+                    </div>
+                    <!-- Professionals Section -->
+                    <div id="professionals-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Professional Management</h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-primary" id="addProfessionalBtn">
+                                                <i class="fas fa-plus"></i> Add Professional
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control" id="professionalSearch" placeholder="Search professionals...">
+                                                    <div class="input-group-append">
+                                                        <button class="btn btn-outline-secondary" type="button">
+                                                            <i class="fas fa-search"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select class="form-control select2" id="professionalSpecializationFilter">
+                                                    <option value="">All Specializations</option>
+                                                    <option value="psychiatrist">Psychiatrist</option>
+                                                    <option value="psychologist">Psychologist</option>
+                                                    <option value="counselor">Counselor</option>
+                                                    <option value="social_worker">Social Worker</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table id="professionalsTable" class="table table-bordered table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Name</th>
+                                                        <th>Specialization</th>
+                                                        <th>Email</th>
+                                                        <th>Phone</th>
+                                                        <th>Experience</th>
+                                                        <th>Status</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="professionalsTableBody">
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
             
-            <!-- Booking Management Section -->
-            <section id="bookings" class="admin-section">
-                <div class="section-header">
-                    <h2>Automated Bookings</h2>
-                    <div class="section-controls">
-                        <select id="statusFilter">
+                    <!-- Bookings Section -->
+                    <div id="bookings-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Automated Bookings</h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-success" id="exportBookingsBtn">
+                                                <i class="fas fa-download"></i> Export
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row mb-3">
+                                            <div class="col-md-3">
+                                                <select class="form-control" id="statusFilter">
                             <option value="">All Status</option>
                             <option value="pending">Pending</option>
                             <option value="confirmed">Confirmed</option>
                             <option value="completed">Completed</option>
                             <option value="declined">Declined</option>
                         </select>
-                        <select id="riskLevelFilter">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <select class="form-control" id="riskLevelFilter">
                             <option value="">All Risk Levels</option>
                             <option value="critical">Critical</option>
                             <option value="high">High</option>
@@ -62,10 +524,17 @@
                             <option value="low">Low</option>
                         </select>
                     </div>
+                                            <div class="col-md-3">
+                                                <input type="date" class="form-control" id="dateFilter" placeholder="Filter by date">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <button class="btn btn-primary" id="refreshBookingsBtn">
+                                                    <i class="fas fa-sync"></i> Refresh
+                                                </button>
+                                            </div>
                 </div>
-                
-                <div class="bookings-table">
-                    <table id="bookingsTable">
+                                        <div class="table-responsive">
+                                            <table id="bookingsTable" class="table table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>Booking ID</th>
@@ -78,184 +547,588 @@
                             </tr>
                         </thead>
                         <tbody id="bookingsTableBody">
-                            <!-- Booking rows will be loaded here -->
+                                                    <!-- Data will be loaded here -->
                         </tbody>
                     </table>
                 </div>
-            </section>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
             
-            <!-- Risk Monitoring Section -->
-            <section id="risk-monitor" class="admin-section">
-                <div class="section-header">
-                    <h2>Real-time Risk Monitoring</h2>
-                    <div class="section-controls">
-                        <button id="refreshStatsBtn" class="btn-secondary">Refresh</button>
+                    <!-- Risk Monitor Section -->
+                    <div id="risk-monitor-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-danger">
+                                    <div class="inner">
+                                        <h3 id="criticalCount">0</h3>
+                                        <p>Critical Risk</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-warning">
+                                    <div class="inner">
+                                        <h3 id="highCount">0</h3>
+                                        <p>High Risk</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-info">
+                                    <div class="inner">
+                                        <h3 id="mediumCount">0</h3>
+                                        <p>Medium Risk</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-info-circle"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="small-box bg-success">
+                                    <div class="inner">
+                                        <h3 id="lowCount">0</h3>
+                                        <p>Low Risk</p>
+                                    </div>
+                                    <div class="icon">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Risk Assessment Timeline</h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="riskTimelineChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Recent Assessments</h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-tool" id="refreshStatsBtn">
+                                                <i class="fas fa-sync"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recentAssessments">
+                                            <!-- Recent assessments will be loaded here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="risk-dashboard">
-                    <div class="risk-stats">
-                        <div class="stat-card critical">
-                            <h3>Critical Risk</h3>
-                            <span class="stat-number" id="criticalCount">0</span>
-                        </div>
-                        <div class="stat-card high">
-                            <h3>High Risk</h3>
-                            <span class="stat-number" id="highCount">0</span>
-                        </div>
-                        <div class="stat-card medium">
-                            <h3>Medium Risk</h3>
-                            <span class="stat-number" id="mediumCount">0</span>
-                        </div>
-                        <div class="stat-card low">
-                            <h3>Low Risk</h3>
-                            <span class="stat-number" id="lowCount">0</span>
-                        </div>
-                    </div>
-                    
-                    <div class="recent-assessments">
-                        <h3>Recent Risk Assessments</h3>
-                        <div id="recentAssessments">
-                            <!-- Recent assessments will be loaded here -->
-                        </div>
-                    </div>
-                </div>
-            </section>
             
-            <!-- Analytics Section -->
-            <section id="analytics" class="admin-section">
-                <div class="section-header">
-                    <h2>System Analytics</h2>
-                </div>
-                
-                <div class="analytics-grid">
-                    <div class="analytics-card">
-                        <h3>Total Professionals</h3>
-                        <span class="analytics-number" id="totalProfessionals">0</span>
+                    <!-- Analytics Section -->
+                    <div id="analytics-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-info"><i class="fas fa-user-md"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Total Professionals</span>
+                                        <span class="info-box-number" id="totalProfessionals">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-success"><i class="fas fa-calendar-check"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Active Bookings</span>
+                                        <span class="info-box-number" id="activeBookings">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-warning"><i class="fas fa-check-circle"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Completed Sessions</span>
+                                        <span class="info-box-number" id="completedSessions">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-primary"><i class="fas fa-chart-line"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Assessments Today</span>
+                                        <span class="info-box-number" id="assessmentsToday">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Monthly Trends</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="monthlyTrendsChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Professional Performance</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="professionalPerformanceChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="analytics-card">
-                        <h3>Active Bookings</h3>
-                        <span class="analytics-number" id="activeBookings">0</span>
+            
+                    <!-- RAG Status Section -->
+                    <div id="rag-status-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-info"><i class="fas fa-database"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Knowledge Chunks</span>
+                                        <span class="info-box-number" id="totalChunks">15</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-success"><i class="fas fa-brain"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">AI Model</span>
+                                        <span class="info-box-number">Online</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-warning"><i class="fas fa-language"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Languages</span>
+                                        <span class="info-box-number">4</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-6">
+                                <div class="info-box">
+                                    <span class="info-box-icon bg-primary"><i class="fas fa-tachometer-alt"></i></span>
+                                    <div class="info-box-content">
+                                        <span class="info-box-text">Response Time</span>
+                                        <span class="info-box-number" id="avgResponseTime">~2s</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">System Performance</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="description-block border-right">
+                                                    <span class="description-percentage text-success">
+                                                        <i class="fas fa-caret-up"></i> 98%
+                                                    </span>
+                                                    <h5 class="description-header">Success Rate</h5>
+                                                    <span class="description-text">AI Response Accuracy</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="description-block">
+                                                    <span class="description-percentage text-info">
+                                                        <i class="fas fa-clock"></i> 2.1s
+                                                    </span>
+                                                    <h5 class="description-header">Avg Response Time</h5>
+                                                    <span class="description-text">Query Processing</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Knowledge Sources</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="list-group list-group-flush">
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                Mental Health Overview
+                                                <span class="badge badge-success badge-pill">Loaded</span>
+                                            </div>
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                Youth Mental Health
+                                                <span class="badge badge-success badge-pill">Loaded</span>
+                                            </div>
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                Rwanda Helplines
+                                                <span class="badge badge-success badge-pill">Loaded</span>
+                                            </div>
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                Self-Help Coping
+                                                <span class="badge badge-success badge-pill">Loaded</span>
+                                            </div>
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                PTSD Trauma Guide
+                                                <span class="badge badge-success badge-pill">Loaded</span>
+                                            </div>
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                Mental Health Policy
+                                                <span class="badge badge-success badge-pill">Loaded</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="analytics-card">
-                        <h3>Completed Sessions</h3>
-                        <span class="analytics-number" id="completedSessions">0</span>
+
+
+                    <!-- Reports Section -->
+                    <div id="reports-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">System Reports</h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-success">
+                                                <i class="fas fa-download"></i> Generate Report
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="card card-primary">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">Monthly Summary</h3>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <p>Generate comprehensive monthly reports</p>
+                                                        <button class="btn btn-primary">Generate</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card card-success">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">Risk Analysis</h3>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <p>Detailed risk assessment reports</p>
+                                                        <button class="btn btn-success">Generate</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card card-warning">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">Professional Performance</h3>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <p>Professional workload and performance</p>
+                                                        <button class="btn btn-warning">Generate</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="analytics-card">
-                        <h3>Risk Assessments Today</h3>
-                        <span class="analytics-number" id="assessmentsToday">0</span>
+
+                    <!-- Settings Section -->
+                    <div id="settings-section" class="content-section" style="display: none;">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">System Settings</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <form>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label>System Name</label>
+                                                        <input type="text" class="form-control" value="AIMHSA Admin">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label>Admin Email</label>
+                                                        <input type="email" class="form-control" value="admin@aimhsa.rw">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label>Risk Threshold</label>
+                                                        <select class="form-control">
+                                                            <option>Low</option>
+                                                            <option selected>Medium</option>
+                                                            <option>High</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label>Auto-Refresh Interval</label>
+                                                        <select class="form-control">
+                                                            <option>30 seconds</option>
+                                                            <option selected>1 minute</option>
+                                                            <option>5 minutes</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
-        </main>
+        </div>
     </div>
     
     <!-- Professional Modal -->
-    <div id="professionalModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle">Add New Professional</h2>
-            <form id="professionalForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="username">Username *</label>
-                        <input type="text" id="username" name="username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="password">Password *</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
+    <div class="modal fade" id="professionalModal" tabindex="-1" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title" id="modalTitle">Add New Professional</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="first_name">First Name *</label>
-                        <input type="text" id="first_name" name="first_name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="last_name">Last Name *</label>
-                        <input type="text" id="last_name" name="last_name" required>
-                    </div>
+                <div class="modal-body">
+                    <form id="professionalForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="username">Username *</label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="password">Password <span id="passwordRequired">*</span></label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                    <small id="passwordHelp" class="form-text text-muted" style="display: none;">Leave blank to keep current password</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="first_name">First Name *</label>
+                                    <input type="text" class="form-control" id="first_name" name="first_name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="last_name">Last Name *</label>
+                                    <input type="text" class="form-control" id="last_name" name="last_name" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="email">Email *</label>
+                                    <input type="email" class="form-control" id="email" name="email" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="phone">Phone</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="specialization">Specialization *</label>
+                                    <select class="form-control" id="specialization" name="specialization" required>
+                                        <option value="">Select Specialization</option>
+                                        <option value="psychiatrist">Psychiatrist</option>
+                                        <option value="psychologist">Psychologist</option>
+                                        <option value="counselor">Counselor</option>
+                                        <option value="social_worker">Social Worker</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="experience_years">Experience (Years)</label>
+                                    <input type="number" class="form-control" id="experience_years" name="experience_years" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="expertise_areas">Expertise Areas *</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="depression" id="expertise_depression">
+                                        <label class="form-check-label" for="expertise_depression">Depression</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="anxiety" id="expertise_anxiety">
+                                        <label class="form-check-label" for="expertise_anxiety">Anxiety</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="ptsd" id="expertise_ptsd">
+                                        <label class="form-check-label" for="expertise_ptsd">PTSD</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="trauma" id="expertise_trauma">
+                                        <label class="form-check-label" for="expertise_trauma">Trauma</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="suicide" id="expertise_suicide">
+                                        <label class="form-check-label" for="expertise_suicide">Suicide Prevention</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="crisis" id="expertise_crisis">
+                                        <label class="form-check-label" for="expertise_crisis">Crisis Intervention</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="youth" id="expertise_youth">
+                                        <label class="form-check-label" for="expertise_youth">Youth Mental Health</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="expertise" value="family" id="expertise_family">
+                                        <label class="form-check-label" for="expertise_family">Family Therapy</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="district">District</label>
+                                    <input type="text" class="form-control" id="district" name="district" placeholder="e.g., Gasabo, Kigali">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="consultation_fee">Consultation Fee (RWF)</label>
+                                    <input type="number" class="form-control" id="consultation_fee" name="consultation_fee" min="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="bio">Bio</label>
+                            <textarea class="form-control" id="bio" name="bio" rows="3" placeholder="Brief professional background..."></textarea>
+                        </div>
+                    </form>
                 </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="email">Email *</label>
-                        <input type="email" id="email" name="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="phone">Phone</label>
-                        <input type="tel" id="phone" name="phone">
-                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" form="professionalForm" class="btn btn-primary">Save Professional</button>
                 </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="specialization">Specialization *</label>
-                        <select id="specialization" name="specialization" required>
-                            <option value="">Select Specialization</option>
-                            <option value="psychiatrist">Psychiatrist</option>
-                            <option value="psychologist">Psychologist</option>
-                            <option value="counselor">Counselor</option>
-                            <option value="social_worker">Social Worker</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="experience_years">Experience (Years)</label>
-                        <input type="number" id="experience_years" name="experience_years" min="0" value="0">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="expertise_areas">Expertise Areas *</label>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" name="expertise" value="depression"> Depression</label>
-                        <label><input type="checkbox" name="expertise" value="anxiety"> Anxiety</label>
-                        <label><input type="checkbox" name="expertise" value="ptsd"> PTSD</label>
-                        <label><input type="checkbox" name="expertise" value="trauma"> Trauma</label>
-                        <label><input type="checkbox" name="expertise" value="suicide"> Suicide Prevention</label>
-                        <label><input type="checkbox" name="expertise" value="crisis"> Crisis Intervention</label>
-                        <label><input type="checkbox" name="expertise" value="youth"> Youth Mental Health</label>
-                        <label><input type="checkbox" name="expertise" value="family"> Family Therapy</label>
-                    </div>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="district">District</label>
-                        <input type="text" id="district" name="district" placeholder="e.g., Gasabo, Kigali">
-                    </div>
-                    <div class="form-group">
-                        <label for="consultation_fee">Consultation Fee (RWF)</label>
-                        <input type="number" id="consultation_fee" name="consultation_fee" min="0">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="bio">Bio</label>
-                    <textarea id="bio" name="bio" rows="3" placeholder="Brief professional background..."></textarea>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Save Professional</button>
-                    <button type="button" class="btn-secondary" id="cancelBtn">Cancel</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
     
     <!-- Booking Details Modal -->
-    <div id="bookingModal" class="modal">
-        <div class="modal-content large">
-            <span class="close">&times;</span>
-            <h2>Booking Details</h2>
-            <div id="bookingDetails">
-                <!-- Booking details will be loaded here -->
+    <div class="modal fade" id="bookingModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Booking Details</h4>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="bookingDetails">
+                        <!-- Booking details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>
     
     
-    <script src="admin.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- AdminLTE 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap4.min.js"></script>
+    <!-- Select2 -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- FullCalendar removed - not needed for admin dashboard -->
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin fa-3x"></i>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <!-- Custom JavaScript (preserves existing functionality) -->
+    <script src="admin_advanced.js"></script>
 </body>
 </html>

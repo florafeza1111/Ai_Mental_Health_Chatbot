@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Field-Specific Error Handling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 15px;
+            border-left: 4px solid #ddd;
+            background: #f9f9f9;
+        }
+        .test-case.pass {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .test-case.fail {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .error-demo {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #991b1b;
+        }
+        .success-demo {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #065f46;
+        }
+        .field-error {
+            font-size: 12px;
+            color: #ef4444;
+            margin-top: 4px;
+        }
+        .test-button {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #5b21b6;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Test Field-Specific Error Handling</h1>
+    <p>This page tests the field-specific error handling implementation for the registration form.</p>
+
+    <div class="test-section">
+        <h2>🎯 What Should Happen Now</h2>
+        <p><strong>Before Fix:</strong> Generic "Registration failed. Please try again." banner at the top</p>
+        <div class="error-demo">
+            ❌ Registration failed. Please try again.
+        </div>
+        
+        <p><strong>After Fix:</strong> Specific field errors below each problematic field</p>
+        <div class="success-demo">
+            ✅ Username: "This username is already taken. Please choose another." (below username field)
+            <br>✅ Email: "This email is already registered. Please use a different email." (below email field)
+            <br>✅ Phone: "This phone number is already registered. Please use a different phone number." (below phone field)
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test Cases to Try</h2>
+        
+        <div class="test-case">
+            <h3>Test 1: Duplicate Username</h3>
+            <p>Try registering with an existing username (e.g., "admin", "test", "user")</p>
+            <p><strong>Expected:</strong> Red error message below username field: "This username is already taken. Please choose another."</p>
+            <p><strong>No generic banner should appear at the top</strong></p>
+        </div>
+
+        <div class="test-case">
+            <h3>Test 2: Duplicate Email</h3>
+            <p>Try registering with an existing email address</p>
+            <p><strong>Expected:</strong> Red error message below email field: "This email is already registered. Please use a different email."</p>
+            <p><strong>No generic banner should appear at the top</strong></p>
+        </div>
+
+        <div class="test-case">
+            <h3>Test 3: Duplicate Phone Number</h3>
+            <p>Try registering with an existing phone number</p>
+            <p><strong>Expected:</strong> Red error message below phone field: "This phone number is already registered. Please use a different phone number."</p>
+            <p><strong>No generic banner should appear at the top</strong></p>
+        </div>
+
+        <div class="test-case">
+            <h3>Test 4: Multiple Field Errors</h3>
+            <p>Try registering with multiple invalid fields (e.g., invalid email + weak password)</p>
+            <p><strong>Expected:</strong> Multiple red error messages below respective fields</p>
+            <p><strong>No generic banner should appear at the top</strong></p>
+        </div>
+
+        <div class="test-case">
+            <h3>Test 5: Validation Errors</h3>
+            <p>Try submitting with empty fields or invalid formats</p>
+            <p><strong>Expected:</strong> Specific error messages below each invalid field</p>
+            <p><strong>No generic banner should appear at the top</strong></p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 How to Test</h2>
+        <ol>
+            <li><strong>Start the servers:</strong>
+                <br><code>python app.py</code> (Backend on port 5057)
+                <br><code>python run_frontend.py</code> (Frontend on port 8000)
+            </li>
+            <li><strong>Open registration form:</strong> <code>http://localhost:8000/register</code></li>
+            <li><strong>Open browser developer tools:</strong> Press F12 to see console logs</li>
+            <li><strong>Try the test cases above</strong></li>
+            <li><strong>Verify:</strong>
+                <ul>
+                    <li>No generic "Registration failed" banner appears at the top</li>
+                    <li>Specific error messages appear below each problematic field</li>
+                    <li>Red borders appear around fields with errors</li>
+                    <li>Console shows detailed error parsing logs</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Debug Information</h2>
+        <p>Open browser developer tools (F12) and check the console for these logs:</p>
+        <ul>
+            <li><code>Registration error:</code> - Shows the full error object</li>
+            <li><code>Parsed error data:</code> - Shows parsed JSON error response</li>
+            <li><code>Server errors:</code> - Shows field-specific errors from server</li>
+            <code>Showing error for field [fieldId]: [error message]</code> - Shows which field gets which error
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Success Criteria</h2>
+        <div class="success-demo">
+            <strong>✅ SUCCESS:</strong> Each field shows its specific error message below the field with red border. No generic error banner appears at the top of the form.
+        </div>
+        
+        <div class="error-demo">
+            <strong>❌ FAILURE:</strong> Generic "Registration failed. Please try again." banner appears at the top of the form.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🛠️ Technical Implementation</h2>
+        <h3>Backend Changes (app.py)</h3>
+        <ul>
+            <li>Returns structured error responses: <code>{"errors": {"field": "message"}}</code></li>
+            <li>Field-specific validation for all inputs</li>
+            <li>Duplicate check errors for username, email, phone</li>
+        </ul>
+
+        <h3>Frontend Changes (register.js)</h3>
+        <ul>
+            <li>Parses structured error responses from backend</li>
+            <li>Shows field-specific errors below each field</li>
+            <li>Clears generic error messages when showing field errors</li>
+            <li>Visual error/success states for fields</li>
+        </ul>
+
+        <h3>Error Flow</h3>
+        <ol>
+            <li>User submits form with errors</li>
+            <li>Backend validates and returns <code>{"errors": {"field": "message"}}</code></li>
+            <li>Frontend parses error response</li>
+            <li>Frontend clears any generic error messages</li>
+            <li>Frontend shows specific error below each field</li>
+            <li>No generic banner appears at the top</li>
+        </ol>
+    </div>
+
+    <script>
+        // Demo function to show expected behavior
+        function demonstrateExpectedBehavior() {
+            console.log('=== EXPECTED BEHAVIOR ===');
+            console.log('✅ Field-specific errors below each field');
+            console.log('✅ Red borders around invalid fields');
+            console.log('✅ No generic error banner at the top');
+            console.log('✅ Console logs show error parsing details');
+            
+            console.log('=== ERROR EXAMPLES ===');
+            console.log('Username error: "This username is already taken. Please choose another."');
+            console.log('Email error: "This email is already registered. Please use a different email."');
+            console.log('Phone error: "This phone number is already registered. Please use a different phone number."');
+        }
+        
+        // Run demonstration
+        demonstrateExpectedBehavior();
+    </script>
+</body>
+</html>
+

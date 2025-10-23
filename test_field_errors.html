@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Field-Specific Error Messages</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 15px;
+            border-left: 4px solid #ddd;
+            background: #f9f9f9;
+        }
+        .test-case.pass {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .test-case.fail {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .error-demo {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #991b1b;
+        }
+        .field-error {
+            font-size: 12px;
+            color: #ef4444;
+            margin-top: 4px;
+        }
+        .success-demo {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #065f46;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Field-Specific Error Messages Test</h1>
+    <p>This page demonstrates how the registration form now shows specific errors for each field instead of generic error messages.</p>
+
+    <div class="test-section">
+        <h2>✅ What's Fixed</h2>
+        <p><strong>Before:</strong> Generic "Registration failed. Please try again." message</p>
+        <div class="error-demo">
+            ❌ Registration failed. Please try again.
+        </div>
+        
+        <p><strong>After:</strong> Specific field errors with clear guidance</p>
+        <div class="success-demo">
+            ✅ Username: "This username is already taken. Please choose another."
+            <br>✅ Email: "This email is already registered. Please use a different email."
+            <br>✅ Phone: "This phone number is already registered. Please use a different phone number."
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Field-Specific Error Examples</h2>
+        
+        <div class="test-case">
+            <h3>Username Errors</h3>
+            <div class="field-error">❌ Username is required</div>
+            <div class="field-error">❌ Username must be at least 3 characters</div>
+            <div class="field-error">❌ Username can only contain letters, numbers, and underscores</div>
+            <div class="field-error">❌ This username is already taken. Please choose another.</div>
+        </div>
+
+        <div class="test-case">
+            <h3>Email Errors</h3>
+            <div class="field-error">❌ Email is required</div>
+            <div class="field-error">❌ Please enter a valid email address</div>
+            <div class="field-error">❌ This email is already registered. Please use a different email.</div>
+        </div>
+
+        <div class="test-case">
+            <h3>Phone Number Errors</h3>
+            <div class="field-error">❌ Phone number is required</div>
+            <div class="field-error">❌ Please enter a valid Rwanda phone number (+250XXXXXXXXX or 07XXXXXXXX)</div>
+            <div class="field-error">❌ This phone number is already registered. Please use a different phone number.</div>
+        </div>
+
+        <div class="test-case">
+            <h3>Full Name Errors</h3>
+            <div class="field-error">❌ Full name is required</div>
+            <div class="field-error">❌ Full name must be at least 2 characters</div>
+            <div class="field-error">❌ Full name can only contain letters, spaces, hyphens, apostrophes, and periods</div>
+            <div class="field-error">❌ Please enter your complete name (first and last name)</div>
+        </div>
+
+        <div class="test-case">
+            <h3>Password Errors</h3>
+            <div class="field-error">❌ Password is required</div>
+            <div class="field-error">❌ Password must be at least 8 characters long</div>
+            <div class="field-error">❌ Password must contain at least one letter</div>
+            <div class="field-error">❌ Password must contain at least one number</div>
+        </div>
+
+        <div class="test-case">
+            <h3>Location Errors</h3>
+            <div class="field-error">❌ Province is required</div>
+            <div class="field-error">❌ District is required</div>
+            <div class="field-error">❌ Please select a valid province</div>
+            <div class="field-error">❌ Please select a valid district for the selected province</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 How to Test</h2>
+        <ol>
+            <li><strong>Start the servers:</strong>
+                <br><code>python app.py</code> (Backend on port 5057)
+                <br><code>python run_frontend.py</code> (Frontend on port 8000)
+            </li>
+            <li><strong>Open registration form:</strong> <code>http://localhost:8000/register</code></li>
+            <li><strong>Test field-specific errors:</strong>
+                <ul>
+                    <li>Try submitting with empty fields</li>
+                    <li>Try invalid email formats</li>
+                    <li>Try invalid phone numbers</li>
+                    <li>Try weak passwords</li>
+                    <li>Try registering with existing username/email/phone</li>
+                </ul>
+            </li>
+            <li><strong>Verify:</strong> Each field shows its specific error message below the field</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Visual Error Display</h2>
+        <p>Errors now appear:</p>
+        <ul>
+            <li><strong>Below each field</strong> with specific error message</li>
+            <li><strong>With red border</strong> around invalid fields</li>
+            <li><strong>With green border</strong> around valid fields</li>
+            <li><strong>Real-time validation</strong> as user types or leaves fields</li>
+            <li><strong>No generic error banner</strong> at the top of the form</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Benefits</h2>
+        <ul>
+            <li><strong>Better User Experience:</strong> Users know exactly what to fix</li>
+            <li><strong>Clear Guidance:</strong> Specific error messages guide users</li>
+            <li><strong>Visual Feedback:</strong> Red/green borders show field status</li>
+            <li><strong>Real-time Validation:</strong> Immediate feedback as user types</li>
+            <li><strong>Professional Appearance:</strong> Clean, modern error display</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Technical Implementation</h2>
+        <h3>Backend Changes (app.py)</h3>
+        <ul>
+            <li>Returns structured error responses: <code>{"errors": {"field": "message"}}</code></li>
+            <li>Field-specific validation for all inputs</li>
+            <li>Duplicate check errors for username, email, phone</li>
+            <li>Comprehensive validation rules</li>
+        </ul>
+
+        <h3>Frontend Changes (register.js)</h3>
+        <ul>
+            <li>Parses structured error responses</li>
+            <li>Shows field-specific errors below each field</li>
+            <li>Visual error/success states for fields</li>
+            <li>Real-time validation on user interaction</li>
+        </ul>
+
+        <h3>CSS Changes (auth.css)</h3>
+        <ul>
+            <li>Error state styling (red borders, shadows)</li>
+            <li>Success state styling (green borders, shadows)</li>
+            <li>Error message styling</li>
+            <li>Help text styling</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Test Results Expected</h2>
+        <div class="success-demo">
+            <strong>✅ SUCCESS:</strong> Each field shows its specific error message below the field, with visual indicators (red border for errors, green border for success). No generic error banner appears at the top of the form.
+        </div>
+    </div>
+
+    <script>
+        // Demo function to show how errors are now handled
+        function demonstrateErrorHandling() {
+            console.log('=== OLD ERROR HANDLING ===');
+            console.log('❌ Generic error: "Registration failed. Please try again."');
+            
+            console.log('=== NEW ERROR HANDLING ===');
+            console.log('✅ Field-specific errors:');
+            console.log('  - Username: "This username is already taken. Please choose another."');
+            console.log('  - Email: "This email is already registered. Please use a different email."');
+            console.log('  - Phone: "This phone number is already registered. Please use a different phone number."');
+            console.log('  - Password: "Password must be at least 8 characters long"');
+            console.log('  - Full Name: "Please enter your complete name (first and last name)"');
+        }
+        
+        // Run demonstration
+        demonstrateErrorHandling();
+    </script>
+</body>
+</html>
+

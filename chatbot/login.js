@@ -1,12 +1,29 @@
 (() => {
-    const API_ROOT = "http://localhost:5057"; // Flask API server
+    // Compute API root reliably:
+    // - If page is served from port 8000 (static dev server), send API calls to 5057
+    // - If page is served by Flask (5057), use same origin
+    // - Otherwise, default to 5057
+    let apiRoot;
+    try {
+        const loc = window.location;
+        if (loc && (loc.port === '8000')) {
+            apiRoot = `${loc.protocol}//${loc.hostname}:5057`;
+        } else if (loc && (loc.port === '5057' || loc.port === '')) {
+            apiRoot = loc.origin; // same origin (Flask)
+        } else {
+            apiRoot = 'http://localhost:5057';
+        }
+    } catch (_) {
+        apiRoot = 'http://localhost:5057';
+    }
+    const API_ROOT = apiRoot;
     
     // Elements
     const loginForm = document.getElementById('loginForm');
     const signInBtn = document.getElementById('signInBtn');
     const anonBtn = document.getElementById('anonBtn');
-    const usernameInput = document.getElementById('loginUsername');
-    const usernameHint = document.getElementById('usernameHint');
+    const emailInput = document.getElementById('loginEmail');
+    const emailHint = document.getElementById('emailHint');
     const passwordInput = document.getElementById('loginPassword');
     const togglePasswordBtn = document.getElementById('togglePassword');
     const meter = document.getElementById('passwordMeter');
@@ -18,7 +35,7 @@
     const fpModal = document.getElementById('fpModal');
     const fpBackdrop = document.getElementById('fpBackdrop');
     const fpClose = document.getElementById('fpClose');
-    const fpUsername = document.getElementById('fpUsername');
+    const fpEmail = document.getElementById('fpEmail');
     const fpRequestBtn = document.getElementById('fpRequestBtn');
     const fpStep1 = document.querySelector('.fp-step-1');
     const fpStep2 = document.querySelector('.fp-step-2');
@@ -128,21 +145,22 @@
         updatePasswordMeter();
     });
 
-    // Remember me: prefill username
-    const savedUsername = localStorage.getItem('aimhsa_saved_username');
-    if (savedUsername) {
-        usernameInput.value = savedUsername;
+    // Remember me: prefill email
+    const savedEmail = localStorage.getItem('aimhsa_saved_email');
+    if (savedEmail) {
+        emailInput.value = savedEmail;
         rememberMe.checked = true;
     }
 
-    // Username basic validation hint
-    usernameInput.addEventListener('input', () => {
-        const v = usernameInput.value.trim();
+    // Email basic validation hint
+    emailInput.addEventListener('input', () => {
+        const v = emailInput.value.trim();
         if (!v) {
-            usernameHint.textContent = '';
+            emailHint.textContent = '';
             return;
         }
-        usernameHint.textContent = v.length < 3 ? 'Username is too short' : '';
+        const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        emailHint.textContent = !emailPattern.test(v) ? 'Please enter a valid email address' : '';
     });
 
     // Forgot password (client-side placeholder)
@@ -192,17 +210,25 @@
             return;
         }
         
-        const username = usernameInput.value.trim();
+        const email = emailInput.value.trim();
         const password = passwordInput.value;
         
-        if (!username || !password) {
-            showMessage('Please enter both username and password');
+        if (!email || !password) {
+            showMessage('Please enter both email and password');
             return;
         }
+        
+        // Email validation
+        const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailPattern.test(email)) {
+            showMessage('Please enter a valid email address');
+            return;
+        }
+        
         if (rememberMe.checked) {
-            localStorage.setItem('aimhsa_saved_username', username);
+            localStorage.setItem('aimhsa_saved_email', email);
         } else {
-            localStorage.removeItem('aimhsa_saved_username');
+            localStorage.removeItem('aimhsa_saved_email');
         }
         
         signInBtn.disabled = true;
@@ -211,19 +237,19 @@
         try {
             // Try user login first
             try {
-                console.log('Trying user login for:', username);
+                console.log('Trying user login for:', email);
                 const res = await api('/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ email, password })
                 });
                 
                 if (res && res.mfa_required) {
                     // Launch MFA modal
-                    openMfaModal({ flow: 'user', username, token: res.mfa_token });
+                    openMfaModal({ flow: 'user', email, token: res.mfa_token });
                 } else {
                     showMessage('Successfully signed in as user!', 'success');
-                    setTimeout(() => redirectToApp(res.account || username), 1000);
+                    setTimeout(() => redirectToApp(res.account || email), 1000);
                 }
                 return;
             } catch (userErr) {
@@ -233,17 +259,17 @@
             
             // Try professional login
             try {
-                console.log('Trying professional login for:', username);
+                console.log('Trying professional login for:', email);
                 const res = await api('/professional/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ email, password })
                 });
                 
                 // Store professional data
                 localStorage.setItem('aimhsa_professional', JSON.stringify(res));
                 if (res && res.mfa_required) {
-                    openMfaModal({ flow: 'professional', username, token: res.mfa_token });
+                    openMfaModal({ flow: 'professional', email, token: res.mfa_token });
                 } else {
                     showMessage('Successfully signed in as professional!', 'success');
                     setTimeout(() => {
@@ -258,22 +284,22 @@
             
             // Try admin login
             try {
-                console.log('Trying admin login for:', username);
+                console.log('Trying admin login for:', email);
                 const res = await api('/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ username: email, password })
                 });
                 
                 console.log('Admin login successful:', res);
                 // Store admin data
                 localStorage.setItem('aimhsa_admin', JSON.stringify(res));
                 if (res && res.mfa_required) {
-                    openMfaModal({ flow: 'admin', username, token: res.mfa_token });
+                    openMfaModal({ flow: 'admin', email, token: res.mfa_token });
                 } else {
                     showMessage('Successfully signed in as admin!', 'success');
                     setTimeout(() => {
-                        window.location.href = '/admin_dashboard.html';
+                        window.location.href = res.redirect || '/admin_dashboard.html';
                     }, 1000);
                 }
                 return;
@@ -391,7 +417,6 @@
         mfaVerifyBtn.addEventListener('click', verify);
         mfaResendBtn.addEventListener('click', resend);
     }
-})();
 
     // --- Forgot Password helpers ---
     function openFpModal() {
@@ -400,8 +425,8 @@
         fpMessage.textContent = '';
         fpStep1.classList.remove('hidden');
         fpStep2.classList.add('hidden');
-        fpUsername.value = usernameInput.value.trim();
-        setTimeout(() => fpUsername.focus(), 0);
+        fpEmail.value = emailInput.value.trim();
+        setTimeout(() => fpEmail.focus(), 0);
 
         function close() {
             fpModal.classList.remove('open');
@@ -414,28 +439,66 @@
         }
 
         async function requestCode() {
-            const u = fpUsername.value.trim();
-            if (!u) {
-                fpMessage.textContent = 'Please enter your username.';
+            console.log('Request code function called');
+            console.log('fpEmail element:', fpEmail);
+            console.log('fpEmail value:', fpEmail ? fpEmail.value : 'fpEmail is null');
+            const email = fpEmail.value.trim();
+            console.log('Email:', email);
+            
+            if (!email) {
+                fpMessage.textContent = 'Please enter your email address.';
+                fpMessage.style.display = 'block';
                 return;
             }
+            
+            // Email validation
+            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!emailPattern.test(email)) {
+                fpMessage.textContent = 'Please enter a valid email address.';
+                fpMessage.style.display = 'block';
+                return;
+            }
+            
             fpRequestBtn.disabled = true;
             fpRequestBtn.textContent = 'Sending...';
+            fpMessage.style.display = 'none';
+            
             try {
+                console.log('Making API call to /forgot_password');
                 const res = await api('/forgot_password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: u })
+                    body: JSON.stringify({ email: email })
                 });
-                // For demo, server may return token; show a subtle message
-                fpMessage.textContent = res.token ? `Reset code: ${res.token} (demo)` : 'If the username exists, a code was sent.';
-                fpStep1.classList.add('hidden');
-                fpStep2.classList.remove('hidden');
-                fpCode.value = '';
-                fpNewPassword.value = '';
-                setTimeout(() => fpCode.focus(), 0);
+                
+                console.log('API response:', res);
+                
+                if (res && res.ok) {
+                    // Show success message and token
+                    let message = res.message || 'Reset code sent successfully!';
+                    if (res.token) {
+                        message += ` Your reset code is: ${res.token}`;
+                    }
+                    fpMessage.textContent = message;
+                    fpMessage.style.display = 'block';
+                    fpMessage.className = 'modal-message success';
+                    
+                    // Move to step 2
+                    fpStep1.classList.add('hidden');
+                    fpStep2.classList.remove('hidden');
+                    fpCode.value = '';
+                    fpNewPassword.value = '';
+                    setTimeout(() => fpCode.focus(), 0);
+                } else {
+                    fpMessage.textContent = res.error || 'Failed to send reset code.';
+                    fpMessage.style.display = 'block';
+                    fpMessage.className = 'modal-message error';
+                }
             } catch (err) {
-                fpMessage.textContent = 'Could not initiate reset. Try again later.';
+                console.error('Forgot password error:', err);
+                fpMessage.textContent = 'Could not initiate reset. Please check your connection and try again.';
+                fpMessage.style.display = 'block';
+                fpMessage.className = 'modal-message error';
             } finally {
                 fpRequestBtn.disabled = false;
                 fpRequestBtn.textContent = 'Send code';
@@ -443,33 +506,60 @@
         }
 
         async function applyReset() {
-            const u = fpUsername.value.trim();
+            console.log('Apply reset function called');
+            const email = fpEmail.value.trim();
             const code = fpCode.value.trim();
             const newPw = fpNewPassword.value;
+            
+            console.log('Reset data:', { email, code, newPw: '***' });
+            
             if (!/^[0-9A-Z]{6}$/.test(code)) {
                 fpMessage.textContent = 'Please enter the 6-character code.';
+                fpMessage.style.display = 'block';
+                fpMessage.className = 'modal-message error';
                 return;
             }
             if (newPw.length < 6) {
                 fpMessage.textContent = 'New password must be at least 6 characters.';
+                fpMessage.style.display = 'block';
+                fpMessage.className = 'modal-message error';
                 return;
             }
+            
             fpApplyBtn.disabled = true;
             fpApplyBtn.textContent = 'Resetting...';
+            fpMessage.style.display = 'none';
+            
             try {
-                await api('/reset_password', {
+                console.log('Making API call to /reset_password');
+                const res = await api('/reset_password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: u, token: code, new_password: newPw })
+                    body: JSON.stringify({ email: email, token: code, new_password: newPw })
                 });
-                fpMessage.textContent = 'Password updated. You can now sign in.';
-                setTimeout(() => {
-                    onClose();
-                    usernameInput.value = u;
-                    passwordInput.focus();
-                }, 800);
+                
+                console.log('Reset password response:', res);
+                
+                if (res && res.ok) {
+                    fpMessage.textContent = res.message || 'Password updated successfully! You can now sign in.';
+                    fpMessage.style.display = 'block';
+                    fpMessage.className = 'modal-message success';
+                    
+                    setTimeout(() => {
+                        onClose();
+                        emailInput.value = email;
+                        passwordInput.focus();
+                    }, 2000);
+                } else {
+                    fpMessage.textContent = res.error || 'Invalid code or error updating password.';
+                    fpMessage.style.display = 'block';
+                    fpMessage.className = 'modal-message error';
+                }
             } catch (err) {
-                fpMessage.textContent = 'Invalid code or error updating password.';
+                console.error('Reset password error:', err);
+                fpMessage.textContent = 'Invalid code or error updating password. Please try again.';
+                fpMessage.style.display = 'block';
+                fpMessage.className = 'modal-message error';
             } finally {
                 fpApplyBtn.disabled = false;
                 fpApplyBtn.textContent = 'Reset password';
@@ -491,7 +581,11 @@
 
         fpBackdrop.addEventListener('click', onClose);
         fpClose.addEventListener('click', onClose);
+        
+        console.log('Attaching event listener to fpRequestBtn:', fpRequestBtn);
         fpRequestBtn.addEventListener('click', requestCode);
+        
         fpApplyBtn.addEventListener('click', applyReset);
         fpResendBtn.addEventListener('click', resendCode);
     }
+})();

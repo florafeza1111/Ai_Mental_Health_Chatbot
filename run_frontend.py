@@ -1,14 +1,37 @@
 import os
 import argparse
 import webbrowser
+import logging
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse
 
 class ChatBotHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # Suppress logging for Chrome DevTools and other browser noise
+        if (len(args) > 0 and 
+            ('.well-known' in str(args) or 
+             'favicon.ico' in str(args) or
+             'apple-touch-icon' in str(args) or
+             'robots.txt' in str(args) or
+             'sitemap.xml' in str(args))):
+            return
+        # Log other requests normally
+        super().log_message(format, *args)
+    
     def do_GET(self):
         # Parse the URL path
         parsed_path = urlparse(self.path)
         path = parsed_path.path
+        
+        # Handle Chrome DevTools and other browser requests silently
+        if (path.startswith('/.well-known/') or 
+            path.startswith('/favicon.ico') or 
+            path.startswith('/apple-touch-icon') or
+            path.startswith('/robots.txt') or
+            path.startswith('/sitemap.xml')):
+            self.send_response(404)
+            self.end_headers()
+            return
         
         # Handle routing for SPA
         if path == '/':

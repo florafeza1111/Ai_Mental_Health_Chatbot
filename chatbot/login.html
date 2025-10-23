@@ -16,9 +16,9 @@
             
 	            <form class="auth-form" id="loginForm" novalidate>
                 <div class="form-group">
-                    <label for="loginUsername">Username</label>
-	                    <input type="text" id="loginUsername" name="loginUsername" autocomplete="username" required />
-	                    <div class="input-hint" id="usernameHint" aria-live="polite"></div>
+                    <label for="loginEmail">Email Address</label>
+	                    <input type="email" id="loginEmail" name="loginEmail" autocomplete="email" required />
+	                    <div class="input-hint" id="emailHint" aria-live="polite"></div>
                 </div>
 	                <div class="form-group">
                     <label for="loginPassword">Password</label>
@@ -87,10 +87,10 @@
 	                    </div>
 	                    <div class="modal-body">
 	                        <div class="fp-step fp-step-1">
-	                            <p>Enter your username to receive a reset code.</p>
+	                            <p>Enter your email address to receive a reset code.</p>
 	                            <div class="form-group">
-	                                <label for="fpUsername">Username</label>
-	                                <input type="text" id="fpUsername" autocomplete="username" />
+	                                <label for="fpEmail">Email Address</label>
+	                                <input type="email" id="fpEmail" autocomplete="email" />
 	                            </div>
 
 	                            <div class="modal-actions">
@@ -125,6 +125,6 @@
         </div>
     </div>
     
-    <script src="login.js"></script>
+    <script src="login.js?v=fp2"></script>
 </body>
 </html>

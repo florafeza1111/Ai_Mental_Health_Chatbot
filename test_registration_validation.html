@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIMHSA Registration Validation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #ddd;
+        }
+        .test-case.pass {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .test-case.fail {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .test-input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-button {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #5b21b6;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .result.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .result.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 AIMHSA Registration Validation Test Suite</h1>
+    <p>This page tests the comprehensive validation implemented for the registration form at <code>http://localhost:8000/register</code></p>
+
+    <div class="test-section">
+        <h2>📋 Validation Features Implemented</h2>
+        <ul>
+            <li><strong>Username Validation:</strong> 3-50 characters, alphanumeric + underscore only, no reserved words</li>
+            <li><strong>Email Validation:</strong> Proper email format, max 100 characters, domain validation</li>
+            <li><strong>Full Name Validation:</strong> 2-100 characters, letters/spaces/hyphens/apostrophes/periods only, minimum 2 words</li>
+            <li><strong>Phone Validation:</strong> Rwanda format (+250XXXXXXXXX or 07XXXXXXXX), prefix validation</li>
+            <li><strong>Province/District Validation:</strong> Required selection, district depends on province</li>
+            <li><strong>Password Validation:</strong> 8-128 characters, letters + numbers required, weak password detection</li>
+            <li><strong>Password Confirmation:</strong> Must match original password</li>
+            <li><strong>Terms Agreement:</strong> Must be checked</li>
+            <li><strong>Real-time Validation:</strong> Live feedback as user types</li>
+            <li><strong>Password Strength Indicator:</strong> Visual strength meter</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Test Cases</h2>
+        
+        <div class="test-case">
+            <h3>Username Tests</h3>
+            <input type="text" class="test-input" id="usernameTest" placeholder="Test username">
+            <button class="test-button" onclick="testUsername()">Test Username</button>
+            <div id="usernameResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-case">
+            <h3>Email Tests</h3>
+            <input type="email" class="test-input" id="emailTest" placeholder="Test email">
+            <button class="test-button" onclick="testEmail()">Test Email</button>
+            <div id="emailResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-case">
+            <h3>Phone Tests</h3>
+            <input type="tel" class="test-input" id="phoneTest" placeholder="Test phone (+250XXXXXXXXX)">
+            <button class="test-button" onclick="testPhone()">Test Phone</button>
+            <div id="phoneResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-case">
+            <h3>Password Tests</h3>
+            <input type="password" class="test-input" id="passwordTest" placeholder="Test password">
+            <button class="test-button" onclick="testPassword()">Test Password</button>
+            <div id="passwordResult" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Expected Validation Results</h2>
+        
+        <h3>Valid Inputs (Should Pass)</h3>
+        <ul>
+            <li><strong>Username:</strong> <code>john_doe123</code>, <code>user123</code>, <code>test_user</code></li>
+            <li><strong>Email:</strong> <code>john@example.com</code>, <code>user@gmail.com</code>, <code>test@domain.co.rw</code></li>
+            <li><strong>Full Name:</strong> <code>John Doe</code>, <code>Marie-Claire Ntwari</code>, <code>Dr. Jean Baptiste</code></li>
+            <li><strong>Phone:</strong> <code>+250788123456</code>, <code>0788123456</code>, <code>+250789123456</code></li>
+            <li><strong>Password:</strong> <code>Password123</code>, <code>MySecure123</code>, <code>StrongPass2024</code></li>
+        </ul>
+
+        <h3>Invalid Inputs (Should Fail)</h3>
+        <ul>
+            <li><strong>Username:</strong> <code>ab</code> (too short), <code>user@name</code> (invalid chars), <code>admin</code> (reserved)</li>
+            <li><strong>Email:</strong> <code>invalid-email</code> (no @), <code>user@</code> (incomplete), <code>@domain.com</code> (no user)</li>
+            <li><strong>Full Name:</strong> <code>J</code> (too short), <code>John123</code> (numbers), <code>John@Doe</code> (invalid chars)</li>
+            <li><strong>Phone:</strong> <code>123456</code> (wrong format), <code>+1234567890</code> (wrong country), <code>078123</code> (too short)</li>
+            <li><strong>Password:</strong> <code>123456</code> (too short), <code>password</code> (no numbers), <code>12345678</code> (no letters)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 How to Test</h2>
+        <ol>
+            <li>Start the AIMHSA server: <code>python app.py</code> (port 5057)</li>
+            <li>Start the frontend server: <code>python run_frontend.py</code> (port 8000)</li>
+            <li>Open <code>http://localhost:8000/register</code> in your browser</li>
+            <li>Test each field with valid and invalid inputs</li>
+            <li>Verify real-time validation feedback</li>
+            <li>Test password strength indicator</li>
+            <li>Test province/district dependency</li>
+            <li>Test form submission with various combinations</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Mobile Testing</h2>
+        <p>Test the registration form on mobile devices to ensure:</p>
+        <ul>
+            <li>Form fields are properly sized for mobile screens</li>
+            <li>Validation messages are readable on small screens</li>
+            <li>Touch interactions work correctly</li>
+            <li>Keyboard types are appropriate (email, tel, etc.)</li>
+        </ul>
+    </div>
+
+    <script>
+        // Test functions (simplified versions of the actual validation)
+        function testUsername() {
+            const username = document.getElementById('usernameTest').value;
+            const result = document.getElementById('usernameResult');
+            
+            let error = null;
+            if (!username || username.trim() === '') {
+                error = 'Username is required';
+            } else if (username.length < 3) {
+                error = 'Username must be at least 3 characters';
+            } else if (username.length > 50) {
+                error = 'Username must be less than 50 characters';
+            } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                error = 'Username can only contain letters, numbers, and underscores';
+            }
+            
+            if (error) {
+                result.className = 'result error';
+                result.textContent = '❌ ' + error;
+            } else {
+                result.className = 'result success';
+                result.textContent = '✅ Username is valid';
+            }
+            result.style.display = 'block';
+        }
+
+        function testEmail() {
+            const email = document.getElementById('emailTest').value;
+            const result = document.getElementById('emailResult');
+            
+            let error = null;
+            if (!email || email.trim() === '') {
+                error = 'Email is required';
+            } else if (email.length > 100) {
+                error = 'Email must be less than 100 characters';
+            } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+                error = 'Please enter a valid email address';
+            }
+            
+            if (error) {
+                result.className = 'result error';
+                result.textContent = '❌ ' + error;
+            } else {
+                result.className = 'result success';
+                result.textContent = '✅ Email is valid';
+            }
+            result.style.display = 'block';
+        }
+
+        function testPhone() {
+            const phone = document.getElementById('phoneTest').value;
+            const result = document.getElementById('phoneResult');
+            
+            let error = null;
+            if (!phone || phone.trim() === '') {
+                error = 'Phone number is required';
+            } else if (!/^(\+250|0)[0-9]{9}$/.test(phone)) {
+                error = 'Please enter a valid Rwanda phone number (+250XXXXXXXXX or 07XXXXXXXX)';
+            }
+            
+            if (error) {
+                result.className = 'result error';
+                result.textContent = '❌ ' + error;
+            } else {
+                result.className = 'result success';
+                result.textContent = '✅ Phone number is valid';
+            }
+            result.style.display = 'block';
+        }
+
+        function testPassword() {
+            const password = document.getElementById('passwordTest').value;
+            const result = document.getElementById('passwordResult');
+            
+            let error = null;
+            if (!password || password === '') {
+                error = 'Password is required';
+            } else if (password.length < 8) {
+                error = 'Password must be at least 8 characters long';
+            } else if (password.length > 128) {
+                error = 'Password must be less than 128 characters';
+            } else if (!/[a-zA-Z]/.test(password)) {
+                error = 'Password must contain at least one letter';
+            } else if (!/[0-9]/.test(password)) {
+                error = 'Password must contain at least one number';
+            }
+            
+            if (error) {
+                result.className = 'result error';
+                result.textContent = '❌ ' + error;
+            } else {
+                result.className = 'result success';
+                result.textContent = '✅ Password is valid';
+            }
+            result.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+
