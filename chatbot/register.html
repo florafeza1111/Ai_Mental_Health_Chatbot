@@ -23,7 +23,7 @@
                            pattern="^[a-zA-Z0-9_]+$" 
                            title="Username can only contain letters, numbers, and underscores"
                            required />
-                    <div class="field-error" id="usernameError"></div>
+                    <div class="field-error" id="regUsernameError"></div>
                     <div class="field-help">3-50 characters, letters, numbers, and underscores only</div>
                 </div>
                 
@@ -34,7 +34,7 @@
                            maxlength="100"
                            title="Enter a valid email address"
                            required />
-                    <div class="field-error" id="emailError"></div>
+                    <div class="field-error" id="regEmailError"></div>
                     <div class="field-help">We'll use this to contact you about your account</div>
                 </div>
                 
@@ -46,7 +46,7 @@
                            pattern="^[a-zA-Z\s\-'\.]+$"
                            title="Enter your full name (letters, spaces, hyphens, apostrophes, and periods only)"
                            required />
-                    <div class="field-error" id="fullnameError"></div>
+                    <div class="field-error" id="regFullnameError"></div>
                     <div class="field-help">Enter your complete name as it appears on official documents</div>
                 </div>
                 
@@ -57,7 +57,7 @@
                            pattern="^(\+250|0)[0-9]{9}$"
                            title="Enter a valid Rwanda phone number"
                            required />
-                    <div class="field-error" id="telephoneError"></div>
+                    <div class="field-error" id="regTelephoneError"></div>
                     <div class="field-help">Rwanda format: +250XXXXXXXXX or 07XXXXXXXX</div>
                 </div>
                 
@@ -71,7 +71,7 @@
                         <option value="Southern">Southern</option>
                         <option value="Western">Western</option>
                     </select>
-                    <div class="field-error" id="provinceError"></div>
+                    <div class="field-error" id="regProvinceError"></div>
                 </div>
                 
                 <div class="form-group">
@@ -79,7 +79,7 @@
                     <select id="regDistrict" name="regDistrict" required>
                         <option value="">Select District</option>
                     </select>
-                    <div class="field-error" id="districtError"></div>
+                    <div class="field-error" id="regDistrictError"></div>
                 </div>
                 
                 <div class="form-group">
@@ -89,7 +89,7 @@
                            minlength="8" maxlength="128"
                            title="Password must be at least 8 characters long"
                            required />
-                    <div class="field-error" id="passwordError"></div>
+                    <div class="field-error" id="regPasswordError"></div>
                     <div class="field-help">At least 8 characters, include letters and numbers</div>
                     <div class="password-strength-indicator">
                         <div class="password-strength-bar"></div>
@@ -102,7 +102,7 @@
                     <input type="password" id="regConfirmPassword" name="regConfirmPassword" 
                            placeholder="Confirm your password" 
                            required />
-                    <div class="field-error" id="confirmPasswordError"></div>
+                    <div class="field-error" id="regConfirmPasswordError"></div>
                     <div class="field-help">Must match the password above</div>
                 </div>
                 
@@ -112,7 +112,7 @@
                         <span class="checkmark"></span>
                         I agree to the <a href="#" target="_blank">Terms of Service</a> and <a href="#" target="_blank">Privacy Policy</a> *
                     </label>
-                    <div class="field-error" id="termsError"></div>
+                    <div class="field-error" id="agreeTermsError"></div>
                 </div>
                 
                 <button type="submit" class="auth-btn" id="registerBtn">Create Account</button>

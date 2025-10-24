@@ -1,5 +1,5 @@
 (() => {
-    const API_ROOT = "http://localhost:5057"; // Flask API server
+    const API_ROOT = ""; // Same port as frontend
     
     // Elements
     const registerForm = document.getElementById('registerForm');
@@ -48,11 +48,32 @@
             errorElement.classList.add('show');
         }
         
-        const formGroup = document.getElementById(fieldId).closest('.form-group');
+        const inputElement = document.getElementById(fieldId);
+        const formGroup = inputElement ? inputElement.closest('.form-group') : null;
+        
         if (formGroup) {
             formGroup.classList.add('error');
             formGroup.classList.remove('success');
         }
+    }
+    
+    // Show server validation errors for specific fields
+    function showServerFieldErrors(serverErrors) {
+        const fieldMapping = {
+            'username': 'regUsername',
+            'email': 'regEmail', 
+            'fullname': 'regFullname',
+            'telephone': 'regTelephone',
+            'province': 'regProvince',
+            'district': 'regDistrict',
+            'password': 'regPassword',
+            'confirmPassword': 'regConfirmPassword'
+        };
+        
+        Object.keys(serverErrors).forEach(field => {
+            const fieldId = fieldMapping[field] || 'reg' + field.charAt(0).toUpperCase() + field.slice(1);
+            showFieldError(fieldId, serverErrors[field]);
+        });
     }
     
     // Clear field error
@@ -498,7 +519,7 @@
         registerBtn.textContent = 'Creating account...';
         
         try {
-            const response = await api('/register', {
+            const response = await api('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -567,14 +588,12 @@
                 // Clear any existing generic error messages
                 clearAllGenericMessages();
                 
-                Object.keys(serverErrors).forEach(field => {
-                    const fieldId = 'reg' + field.charAt(0).toUpperCase() + field.slice(1);
-                    console.log(`Showing error for field ${fieldId}: ${serverErrors[field]}`);
-                    showFieldError(fieldId, serverErrors[field]);
-                });
+                // Show server validation errors for each field
+                showServerFieldErrors(serverErrors);
                 
-                // Don't show generic message if we have specific field errors
-                return; // Exit without showing generic message
+                // Show generic message if there are field errors
+                showMessage('Please correct the errors below');
+                return; // Exit after showing field errors
             }
             
             // Only show generic message if no specific field errors

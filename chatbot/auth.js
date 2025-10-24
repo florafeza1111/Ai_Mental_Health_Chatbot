@@ -1,5 +1,5 @@
 (() => {
-    const API_ROOT = "http://localhost:5057";
+    const API_ROOT = ""; // Same port as frontend
     
     // Elements
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -81,7 +81,7 @@
             signInBtn.textContent = 'Signing in...';
             
             try {
-                const res = await api('/login', {
+                const res = await api('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
@@ -119,7 +119,7 @@
             registerBtn.textContent = 'Creating account...';
             
             try {
-                await api('/register', {
+                await api('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })

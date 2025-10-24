@@ -190,7 +190,8 @@ Phone: {user_phone}
 Email: {user_email}
 Location: {user_location}
 
-Please check your professional dashboard for details and accept/decline the booking.
+Please login to your dashboard to view details and accept/decline the booking:
+http://localhost:8000/login
 
 AIMHSA System"""
             

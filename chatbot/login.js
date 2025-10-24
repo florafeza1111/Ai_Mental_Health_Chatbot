@@ -238,7 +238,7 @@
             // Try user login first
             try {
                 console.log('Trying user login for:', email);
-                const res = await api('/login', {
+                const res = await api('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })

@@ -978,6 +978,13 @@ def app_js_asset():
 
 SYSTEM_PROMPT = """You are AIMHSA (AI Mental Health Support Assistant), a professional multilingual mental health chatbot specifically designed for Rwanda. You provide culturally-sensitive, evidence-based mental health support in four languages: English, French, Kiswahili, and Kinyarwanda.
 
+## SCOPE BOUNDARIES - CRITICAL
+- You are a mental health support assistant - ONLY respond to mental health, emotional well-being, and psychological support questions
+- If asked about topics outside mental health (technology, politics, general knowledge, etc.), politely explain that you specialize in mental health support and gently redirect the conversation to mental health topics
+- NEVER provide detailed answers to non-mental health questions
+- Always maintain your role as a mental health support assistant
+- When redirecting, be warm and empathetic, then ask about their emotional well-being or mental health concerns
+
 ## Professional Identity & Mission
 - You are a professional mental health support assistant for Rwanda
 - Your mission is to provide immediate, culturally-appropriate mental health support
@@ -1028,7 +1035,12 @@ SYSTEM_PROMPT = """You are AIMHSA (AI Mental Health Support Assistant), a profes
 - Be sensitive to trauma-related concerns, especially post-genocide experiences
 - Maintain professional respect for cultural diversity
 
-Remember: You are a professional mental health support system designed to provide immediate, culturally-appropriate assistance while connecting users to professional care when needed. Always respond in the user's detected language with professional empathy and cultural sensitivity.
+## Scope Enforcement Examples
+- If asked about technology: "I'm a mental health support assistant, so I can't help with technical issues. However, I'm here to support your emotional well-being. How are you feeling today? Is there anything on your mind that's causing you stress or concern?"
+- If asked about politics: "I specialize in mental health support rather than political topics. I'm here to help with your emotional well-being and mental health. What's been on your mind lately? How are you coping with current events?"
+- If asked about general knowledge: "I'm focused on mental health support. I'd be happy to help with any emotional concerns or mental health questions you might have. How are you feeling today?"
+
+Remember: You are a professional mental health support system designed to provide immediate, culturally-appropriate assistance while connecting users to professional care when needed. Always respond in the user's detected language with professional empathy and cultural sensitivity. Gently redirect out-of-scope questions to mental health topics.
 """
 
 def rebuild_vector_store():
@@ -1773,12 +1785,68 @@ def determine_target_language(current_query: str, server_history: List[Dict], ma
     app.logger.info(f"Final language determination: {final_lang}")
     return final_lang
 
+def validate_mental_health_scope(query: str) -> bool:
+    """
+    Validate if the user query is within mental health scope.
+    Returns True if within scope, False if outside scope.
+    """
+    query_lower = query.lower().strip()
+    
+    # Mental health related keywords
+    mental_health_keywords = [
+        'mental', 'emotional', 'psychological', 'depression', 'anxiety', 'stress',
+        'sad', 'happy', 'angry', 'frustrated', 'overwhelmed', 'lonely', 'isolated',
+        'therapy', 'counseling', 'support', 'help', 'feel', 'feeling', 'mood',
+        'sleep', 'insomnia', 'nightmare', 'trauma', 'ptsd', 'panic', 'worry',
+        'cope', 'coping', 'self-care', 'wellness', 'wellbeing', 'mind', 'thoughts',
+        'suicide', 'self-harm', 'hopeless', 'worthless', 'burden', 'crisis',
+        'professional', 'therapist', 'psychologist', 'psychiatrist', 'counselor',
+        'session', 'treatment', 'recovery', 'healing', 'grief', 'loss', 'bereavement',
+        'relationship', 'family', 'friends', 'social', 'communication', 'conflict',
+        'work', 'job', 'career', 'school', 'study', 'academic', 'performance',
+        'health', 'medical', 'doctor', 'hospital', 'medication', 'medicine',
+        'exercise', 'fitness', 'diet', 'nutrition', 'lifestyle', 'habits',
+        'addiction', 'substance', 'alcohol', 'drug', 'smoking', 'gambling',
+        'anger', 'rage', 'violence', 'abuse', 'domestic', 'bullying', 'harassment',
+        'fear', 'phobia', 'worry', 'concern', 'problem', 'issue', 'challenge',
+        'goal', 'motivation', 'inspiration', 'hope', 'future', 'plan', 'dream',
+        'memory', 'concentration', 'focus', 'attention', 'learning', 'development',
+        'child', 'teen', 'adolescent', 'adult', 'elderly', 'aging', 'retirement',
+        'pregnancy', 'postpartum', 'parenting', 'childcare', 'family planning',
+        'lgbtq', 'gender', 'identity', 'sexuality', 'orientation', 'discrimination',
+        'culture', 'tradition', 'belief', 'religion', 'spiritual', 'faith',
+        'community', 'society', 'social', 'isolation', 'connection', 'belonging',
+        'purpose', 'meaning', 'value', 'worth', 'self-esteem', 'confidence',
+        'boundary', 'limit', 'respect', 'consent', 'safety', 'security',
+        'emergency', 'crisis', 'urgent', 'immediate', 'danger', 'risk', 'harm'
+    ]
+    
+    # Check if query contains mental health related terms
+    for keyword in mental_health_keywords:
+        if keyword in query_lower:
+            return True
+    
+    # Check for greetings and general mental health inquiries
+    greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening']
+    if any(greeting in query_lower for greeting in greetings):
+        return True
+    
+    # Check for general help requests
+    help_requests = ['help', 'support', 'assistance', 'advice', 'guidance', 'information']
+    if any(request in query_lower for request in help_requests):
+        return True
+    
+    # If no mental health keywords found, likely outside scope
+    return False
+
 @app.post("/ask")
 def ask():
     data = request.get_json(force=True)
     query = (data.get("query") or "").strip()
     if not query:
         return jsonify({"error": "Missing 'query'"}), 400
+
+    # Let the AI model handle scope enforcement naturally
 
     # conversation id handling: if none provided, create one and return it
     conv_id = data.get("id")
@@ -1869,6 +1937,8 @@ def ask():
     context = build_context(top)
 
     user_prompt = f"""Answer the user's question using the CONTEXT below when relevant.
+You are a mental health support assistant. If the question is about mental health, provide helpful support.
+If the question is outside mental health scope, politely explain your specialization and redirect to mental health topics.
 If the context is insufficient, be honest and provide safe, general guidance.
 If the user greets you or asks for general help, respond helpfully without requiring context.
 

@@ -1,5 +1,5 @@
 (() => {
-  const API_ROOT = "http://localhost:5057"; // Flask API server
+  const API_ROOT = ""; // Same port as frontend
   
   // Check authentication
   const account = localStorage.getItem("aimhsa_account");
